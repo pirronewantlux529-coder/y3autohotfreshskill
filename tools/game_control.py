@@ -86,7 +86,19 @@ TIMEOUT = 5
 
 # 游戏启动配置
 GAME_EXE = r'd:\Y3\y3\games\2.0\game\Engine\Binaries\Win64\Game_x64h.exe'
-GAME_ARGS = [
+
+# 不带调试器的启动参数（用于批量测试，错误会写入日志）
+GAME_ARGS_NO_DEBUG = [
+    '--dx11',
+    '--start=Python',
+    '--python-args=type@editor_game,subtype@editor_game,editor_map_path@d:\\Y3\\ORPG项目总包\\ORPG,level_id@129406483677115854938498460620380268465,release@true,lua_dummy@space,lua_wait_debugger@false',
+    '--plugin-config=Plugins-PyQt',
+    '--console',
+    '--luaconsole'
+]
+
+# 带调试器的启动参数（用于调试，错误会在 Cursor 中定位）
+GAME_ARGS_DEBUG = [
     '--dx11',
     '--start=Python',
     '--python-args=type@editor_game,subtype@editor_game,editor_map_path@d:\\Y3\\ORPG项目总包\\ORPG,level_id@129406483677115854938498460620380268465,release@true,lua_dummy@space,lua_wait_debugger@true',
@@ -94,6 +106,9 @@ GAME_ARGS = [
     '--console',
     '--luaconsole'
 ]
+
+# 默认使用不带调试器的参数
+GAME_ARGS = GAME_ARGS_NO_DEBUG
 
 def send_command(cmd, wait_log=False, log_timeout=30, check_game=True):
     """发送命令到游戏（带认证）
@@ -180,12 +195,13 @@ def run_lua_file(filename, wait_log=True):
         lua_path = lua_path[:-4]
     return send_command(f"热更新('{lua_path}')", wait_log=wait_log)
 
-def run_lua_code(code, wait_log=True):
+def run_lua_code(code, wait_log=True, safe_mode=True):
     """执行任意Lua代码（创建临时文件后热更新）
 
     Args:
         code: Lua代码字符串
         wait_log: 是否等待日志更新确认执行
+        safe_mode: 是否用 pcall 包装（捕获错误写入日志，而不是弹窗）
     """
     import uuid
 
@@ -211,8 +227,18 @@ def run_lua_code(code, wait_log=True):
     # 写入临时文件
     with open(temp_file, 'w', encoding='utf-8') as f:
         f.write(f'-- 临时执行脚本\n')
-        f.write(code)
-        f.write('\n')
+        if safe_mode:
+            # 用 xpcall 包装，错误写入日志而不是弹窗
+            # 注意：引擎级错误（调用nil方法）无法被pcall捕获
+            f.write('local ok, err = xpcall(function()\n')
+            f.write(code)
+            f.write('\nend, function(e) return debug.traceback(e) end)\n')
+            f.write('if not ok then\n')
+            f.write('    log.error("[临时脚本错误] " .. tostring(err))\n')
+            f.write('end\n')
+        else:
+            f.write(code)
+            f.write('\n')
 
     # 通过热更新执行（不立即删除文件，让游戏有时间读取）
     lua_path = f'tools.temp.{temp_name}'
@@ -378,6 +404,49 @@ def launch_game_y3helper():
         return True
     return False
 
+def debug_continue():
+    """让卡在断点/异常的游戏继续运行"""
+    if send_y3helper('workbench.action.debug.continue'):
+        print('[OK] 已发送继续运行命令')
+        return True
+    return False
+
+def debug_pause():
+    """暂停游戏（触发断点）"""
+    if send_y3helper('workbench.action.debug.pause'):
+        print('[OK] 已发送暂停命令')
+        return True
+    return False
+
+def debug_step_over():
+    """单步跳过"""
+    if send_y3helper('workbench.action.debug.stepOver'):
+        print('[OK] 单步跳过')
+        return True
+    return False
+
+def debug_step_into():
+    """单步进入"""
+    if send_y3helper('workbench.action.debug.stepInto'):
+        print('[OK] 单步进入')
+        return True
+    return False
+
+def debug_step_out():
+    """单步跳出"""
+    if send_y3helper('workbench.action.debug.stepOut'):
+        print('[OK] 单步跳出')
+        return True
+    return False
+
+def show_status():
+    """显示游戏运行状态"""
+    running, msg = is_game_running()
+    if running:
+        print(f'[游戏] 运行中 - {msg}')
+    else:
+        print(f'[游戏] 未运行 - {msg}')
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -387,6 +456,12 @@ def main():
         print('  launch2          - 启动游戏 (通过Y3 Helper，会弹UAC)')
         print('  kill             - 强制杀掉游戏进程 (关闭Y3-Console)')
         print('  frestart         - 强制重启: 杀进程 -> 启动 -> 进入游戏')
+        print('  continue / c     - 继续运行（从异常/断点恢复）')
+        print('  pause / p        - 暂停游戏（触发断点）')
+        print('  stepover / n     - 单步跳过')
+        print('  stepinto / s     - 单步进入')
+        print('  stepout / o      - 单步跳出')
+        print('  break "代码"     - 在代码前插入断点执行')
         print('  start            - 启动游戏客户端 (旧方法，不推荐)')
         print('  reload [module]  - 热更新模块 (默认 base.hotfresh)')
         print('  restart          - 重启游戏 (switch_level，游戏卡死时无效)')
@@ -406,11 +481,7 @@ def main():
     cmd = args[0].lower() if args else ''
 
     if cmd == 'status':
-        running, msg = is_game_running()
-        if running:
-            print(f'[OK] {msg}')
-        else:
-            print(f'[未运行] {msg}')
+        show_status()
     elif cmd == 'kill':
         kill_game()
     elif cmd == 'frestart':
@@ -443,6 +514,25 @@ def main():
             return
         code = ' '.join(args[1:])
         run_lua_code(code, wait_log=wait_log)
+    elif cmd == 'continue' or cmd == 'c':
+        debug_continue()
+    elif cmd == 'pause' or cmd == 'p':
+        debug_pause()
+    elif cmd == 'stepover' or cmd == 'n':
+        debug_step_over()
+    elif cmd == 'stepinto' or cmd == 's':
+        debug_step_into()
+    elif cmd == 'stepout' or cmd == 'o':
+        debug_step_out()
+    elif cmd == 'break':
+        # 在代码中插入断点：执行 dbg() 会触发断点
+        if len(args) < 2:
+            print('[提示] 在 Lua 代码中调用 dbg() 可触发断点')
+            print('[示例] python game_control.py lua "dbg(); print(123)"')
+        else:
+            # 在指定代码前插入 dbg()
+            code = 'dbg(); ' + ' '.join(args[1:])
+            run_lua_code(code, wait_log=False, safe_mode=False)
     else:
         # 直接发送原始命令
         raw_cmd = ' '.join(args)

@@ -1,129 +1,116 @@
 # Y3 Helper 调试环境安装向导
 
-本文档是 Claude Code 的交互式安装指南。Claude 会自动搜索路径、询问用户确认、并完成所有配置。
+本文档是交互式安装指南，Claude Code 会根据此文档引导用户完成配置。
 
 ---
 
-## 🤖 Claude 自动安装流程
+## 🔧 安装前检查
 
-当用户请求安装此 skill 时，Claude 应按以下流程执行：
+Claude 在开始安装前需要向用户确认以下信息：
 
-### 第一步：自动探测环境
-
-Claude 执行以下搜索来自动发现用户环境：
-
-```python
-import os
-import glob
-
-# 1. 搜索 Y3 编辑器安装路径
-y3_patterns = [
-    "C:/Y3", "D:/Y3", "E:/Y3",
-    "C:/*/Y3", "D:/*/Y3",
-    os.path.expanduser("~/Y3")
-]
-# 查找包含 games/2.0/game/Engine/Binaries/Win64/Game_x64h.exe 的目录
-
-# 2. 搜索 Y3 项目路径（包含 main.lua 的 script 目录）
-# 在 Y3 目录下搜索 **/maps/*/script/main.lua
-
-# 3. 搜索编辑器插件路径
-editor_patterns = [
-    os.path.expanduser("~/.cursor/extensions/sumneko.y3-helper-*"),
-    os.path.expanduser("~/.vscode/extensions/sumneko.y3-helper-*"),
-    "C:/Users/*/.cursor/extensions/sumneko.y3-helper-*",
-    "C:/Users/*/.vscode/extensions/sumneko.y3-helper-*"
-]
+### 问题 1：使用的编辑器
+```
+请问你使用的是哪个编辑器？
+1. Cursor
+2. VSCode
 ```
 
-### 第二步：向用户确认发现的路径
-
-Claude 使用 AskUserQuestion 工具确认：
-
+### 问题 2：项目路径
 ```
-我找到了以下路径，请确认是否正确：
+请确认你的 Y3 项目脚本目录路径（包含 main.lua 的目录）：
+默认: D:\Y3\ORPG项目总包\ORPG\maps\EntryMap\script
 
-1. Y3 编辑器: D:\Y3\y3
-2. 项目脚本目录: D:\Y3\MyProject\maps\MyMap\script
-3. 编辑器插件: C:\Users\xxx\.cursor\extensions\sumneko.y3-helper-1.0.0
-
-是否正确？如果不对请提供正确路径。
+请输入路径或按回车使用默认值：
 ```
-
-### 第三步：自动执行安装
-
-确认后，Claude 自动执行以下操作：
 
 ---
 
-## 📋 详细安装步骤
+## 📋 安装步骤
 
-### 步骤 1：修改 Y3 Helper 插件（添加 runLua 命令）
+### 步骤 1：检查 Y3 Helper 插件
 
-**Claude 自动执行：**
-
+Claude 执行：
 ```python
-# 查找并修改 extension.js
-ext_path = "<探测到的插件路径>/dist/extension.js"
+import os, glob
 
-# 读取文件
-with open(ext_path, 'r', encoding='utf-8') as f:
-    content = f.read()
+editor = "cursor"  # 或 "vscode"
+user_home = os.path.expanduser("~")
+ext_base = os.path.join(user_home, f".{editor}", "extensions")
 
-# 检查是否已安装
-if 'y3-helper.runLua' in content:
-    print("runLua 已安装，跳过")
+# 查找 Y3 Helper
+y3_helper_paths = glob.glob(os.path.join(ext_base, "sumneko.y3-helper-*"))
+if y3_helper_paths:
+    y3_helper_path = sorted(y3_helper_paths)[-1]  # 最新版本
+    print(f"✓ 找到 Y3 Helper: {y3_helper_path}")
 else:
-    # 备份
-    with open(ext_path + '.backup', 'w', encoding='utf-8') as f:
-        f.write(content)
-
-    # 修改
-    old = 'a.commands.registerCommand("y3-helper.reloadLua",(async()=>{for(let e of g.allClients)e.notify("command",{data:".rd"})}))'
-    new = old + ',a.commands.registerCommand("y3-helper.runLua",(async(code)=>{for(let e of g.allClients)e.notify("command",{data:code})}))'
-    content = content.replace(old, new)
-
-    with open(ext_path, 'w', encoding='utf-8') as f:
-        f.write(content)
-    print("runLua 命令已添加，请重启编辑器")
+    print("✗ 未找到 Y3 Helper 插件，请先在编辑器中安装")
 ```
 
-或运行安装脚本：
+**如果未找到插件**，提示用户：
+```
+请在 Cursor/VSCode 中安装 Y3 Helper 插件：
+1. 打开扩展市场 (Ctrl+Shift+X)
+2. 搜索 "Y3 Helper"
+3. 安装 sumneko.y3-helper
+4. 重启编辑器后再次运行安装
+```
+
+### 步骤 2：安装 Y3 Helper 补丁（错误捕获）
+
+Y3 Helper 需要打两个补丁来捕获所有错误：
+
+#### 补丁 1：print 消息转发
+
 ```bash
-python <skill目录>/tools/install_y3helper_runlua.py
+cd <tools目录>
+python patch_y3helper_http.py
 ```
 
----
+**作用**：将游戏端的 print/log 消息写入文件，供外部监听。
 
-### 步骤 2：配置游戏端代码
+#### 补丁 2：调试器异常捕获
 
-**Claude 自动检查并修改：**
-
-#### 2.1 检查 main.lua 是否加载 debugs.lua
-
-Claude 读取 `<项目路径>/main.lua`，搜索是否包含 `require 'base.debugs'` 或 `require('base.debugs')`。
-
-**如果没有找到**，Claude 需要添加以下代码到 main.lua 的初始化部分：
-
-```lua
-if debug.sethook then     --是本地开发环境
-    y3.config.debug = true
-    require 'base.debugs' --debug功能开启
-end
+```bash
+cd <tools目录>
+python patch_debugger_exception.py
 ```
 
-**Claude 操作步骤：**
-1. 读取 main.lua 文件
-2. 搜索 `base.debugs`
-3. 如果没有，找到合适的位置（通常在文件开头的初始化部分）添加上述代码
-4. 向用户确认修改
+**作用**：捕获引擎级异常（如 "attempt to call a nil value"），写入同一文件。
 
-#### 2.2 修改 base/debugs.lua
+**预期输出**：
+```
+Y3 Helper 调试异常捕获补丁
+==================================================
+[找到] C:\Users\xxx\.cursor\extensions\sumneko.y3-helper-x.x.x
+[备份] extension.js.backup.exception.xxx
+[成功] 调试异常捕获补丁已应用
+[提示] 异常消息将写入: C:\Users\xxx\AppData\Local\Temp\y3helper_messages.jsonl
+[提示] 请重启 Cursor/VSCode 使补丁生效
+```
 
-Claude 检查 `<项目路径>/base/debugs.lua` 是否包含 Y3 Helper 消息处理器：
+### 步骤 3：修改 Y3 Helper 插件（添加 runLua 命令）
+
+Claude 执行 `tools/install_y3helper_runlua.py`：
+
+```bash
+cd <项目路径>/tools
+python install_y3helper_runlua.py
+```
+
+**预期输出**：
+```
+找到插件：C:\Users\xxx\.cursor\extensions\sumneko.y3-helper-x.x.x\dist\extension.js
+已备份到：extension.js.backup
+✓ runLua 命令安装成功！
+请重启 VSCode/Cursor 使修改生效
+```
+
+### 步骤 4：配置游戏端代码
+
+Claude 检查 `base/debugs.lua` 是否包含 Y3 Helper 消息处理器：
 
 ```lua
--- 检查是否包含这段代码
+-- 需要确保以下代码存在于 base/debugs.lua
 if y3.develop and y3.develop.helper then
     local helper = y3.develop.helper
     helper.onReady(function()
@@ -137,142 +124,130 @@ if y3.develop and y3.develop.helper then
 end
 ```
 
-**Claude 操作步骤：**
-1. 读取 `base/debugs.lua` 文件
-2. 搜索 `y3.develop.helper` 或 `registerMethod`
-3. 如果没有找到，将上述代码添加到文件末尾
-4. 完整的 debugs.lua 补丁代码在 `examples/debugs_y3helper_patch.lua`
+### 步骤 5：创建计划任务（可选，用于强制杀进程）
 
----
-
-### 步骤 3：复制工具脚本
-
-**Claude 自动执行：**
-
-```python
-import shutil
-
-skill_tools = "<skill目录>/tools"
-project_tools = "<项目路径>/tools"
-
-# 确保目录存在
-os.makedirs(project_tools, exist_ok=True)
-
-# 复制文件
-files = ['game_control.py', 'quick_enter.lua', 'restart_game.lua', 'debug_template.lua']
-for f in files:
-    shutil.copy(f"{skill_tools}/{f}", f"{project_tools}/{f}")
-```
-
----
-
-### 步骤 4：创建启动脚本 launch_game.bat
-
-**Claude 自动生成（根据探测到的路径）：**
-
-```python
-# 获取关卡ID（从项目配置中读取，或询问用户）
-level_id = "<从项目中读取或询问用户>"
-
-bat_content = f'''@echo off
-chcp 65001 >nul
-cd /d "{y3_dir}\\games\\2.0\\game\\Engine\\Binaries\\Win64"
-start "" "Game_x64h.exe" --dx11 --start=Python "--python-args=type@editor_game,subtype@editor_game,editor_map_path@{project_path},level_id@{level_id},release@true,lua_dummy@space,lua_wait_debugger@true" --plugin-config=Plugins-PyQt --console --luaconsole
-'''
-
-with open(f"{project_tools}/launch_game.bat", 'w', encoding='utf-8') as f:
-    f.write(bat_content)
-```
-
-**关于关卡ID：**
-- Claude 可以搜索项目中的 `.json` 或配置文件查找 level_id
-- 或者询问用户提供
-- 常见位置：项目根目录的配置文件，或 Y3 编辑器中查看
-
----
-
-### 步骤 5：创建计划任务（无UAC启动）
-
-**Claude 自动执行（会弹出一次管理员确认）：**
-
-```python
-import subprocess
-
-bat_path = f"{project_tools}/launch_game.bat"
-cmd = f'''powershell -Command "Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', 'schtasks /create /tn Y3LaunchGame /tr \"{bat_path}\" /sc once /st 00:00 /rl highest /f & echo 创建成功 & pause' -Verb RunAs -Wait"'''
-
-subprocess.run(cmd, shell=True)
-```
-
----
-
-### 步骤 6：验证安装
-
-**Claude 自动测试：**
+以管理员权限运行：
 
 ```bash
 cd <项目路径>/tools
-python game_control.py launch   # 测试启动游戏（应无UAC弹窗）
-# 等待游戏加载...
-python game_control.py test     # 测试发送命令
+setup_kill_task.bat
 ```
 
-检查日志确认：
+这会创建计划任务，允许无 UAC 弹窗杀掉游戏进程。
+
+### 步骤 6：重启编辑器
+
+**必须完全关闭 Cursor/VSCode（包括所有进程），然后重新打开项目。**
+
+### 步骤 7：验证安装
+
 ```bash
-grep "Hello from game_control" <项目路径>/.log/lua_player01.log
+cd <项目路径>/tools
+
+# 1. 启动游戏
+python game_control.py launch
+
+# 2. 等待加载
+sleep 15
+
+# 3. 检查状态
+python game_control.py status
+# 应显示: [OK] 游戏运行中 (PID: xxx)
+
+# 4. 进入游戏
+python game_control.py enter
+
+# 5. 测试错误捕获
+python game_control.py lua "print('[test] Hello!')"
+
+# 6. 检查消息文件
+tail "$TEMP/y3helper_messages.jsonl"
+# 应看到 [test] Hello! 消息
 ```
 
 ---
 
-## 🔍 路径搜索参考
+## 📁 工具文件清单
 
-### Y3 编辑器路径特征
-- 包含 `games/2.0/game/Engine/Binaries/Win64/Game_x64h.exe`
-- 常见位置：`D:\Y3\y3`, `C:\Y3\y3`
-
-### Y3 项目路径特征
-- 包含 `main.lua`
-- 目录结构：`<项目>/maps/<地图名>/script/main.lua`
-- 包含 `y3/` 框架目录
-- 包含 `base/` 目录
-
-### 关卡ID获取方法
-- 在 Y3 编辑器中打开项目，查看关卡属性
-- 搜索项目中的 `level_id` 或 `switch_level`
-- 查看 `tools/restart_game.lua` 中是否已有配置
+```
+<项目路径>/tools/
+├── game_control.py              # 游戏控制主脚本
+├── file_listener.py             # 消息文件监听器
+├── error_sender.lua             # 游戏端错误发送模块
+├── patch_y3helper_http.py       # 补丁1：print消息转发
+├── patch_debugger_exception.py  # 补丁2：异常捕获
+├── install_y3helper_runlua.py   # runLua命令安装
+├── setup_kill_task.bat          # 计划任务安装
+├── quick_enter.lua              # 快速进入游戏
+├── restart_game.lua             # 重启游戏
+└── temp/                        # 临时 Lua 脚本目录
+```
 
 ---
 
-## ⚠️ WSL 特殊配置
+## 🔄 插件更新后重新安装
 
-如果用户使用 WSL：
-- 必须使用 Windows Python：`/mnt/c/Windows/py.exe`
-- 路径转换：`D:\Y3\...` → `/mnt/d/Y3/...`
+Y3 Helper 插件更新后，需要重新执行所有补丁：
+
+```bash
+cd <项目路径>/tools
+
+# 重新打补丁
+python patch_y3helper_http.py
+python patch_debugger_exception.py
+python install_y3helper_runlua.py
+
+# 重启编辑器
+```
 
 ---
 
 ## 🐛 故障排除
 
-| 问题 | 原因 | Claude 解决方案 |
-|------|------|----------------|
-| runLua not found | 插件未修改 | 重新运行 install_y3helper_runlua.py |
-| 连接被拒绝 | 编辑器未运行 | 提示用户打开 Cursor/VSCode |
-| 游戏收不到命令 | debugs.lua 未配置 | 检查并添加消息处理器代码 |
-| 中文路径乱码 | bat编码问题 | 确保 bat 文件包含 `chcp 65001` |
-| UAC弹窗 | 计划任务未创建 | 重新创建计划任务 |
+### 问题：command 'y3-helper.runLua' not found
+- 确认已运行 `install_y3helper_runlua.py`
+- 确认已重启编辑器
+
+### 问题：连接被拒绝
+- 确认编辑器已打开项目
+- 确认 Y3 Helper 插件已启动（查看编辑器底部状态栏）
+
+### 问题：游戏收不到消息
+- 确认游戏以调试模式启动（通过 Y3 Helper 启动）
+- 检查 `base/debugs.lua` 中的代码是否正确
+- 查看日志：`.log/lua_player01.log`
+
+### 问题：消息文件没有内容
+- 确认已打补丁并重启编辑器
+- 检查补丁是否存在：`grep "FORWARD_TO_LISTENER" <extension.js路径>`
+- 检查异常补丁：`grep "DEBUG_EXCEPTION_TRACKER" <extension.js路径>`
+
+### 问题：异常没有被捕获
+- 确认游戏是通过 Y3 Helper 启动的（带调试器）
+- 确认 `patch_debugger_exception.py` 已执行
+- 确认编辑器已重启
+
+### 问题：游戏卡住无法操作
+```bash
+# 强制杀掉游戏进程
+python game_control.py kill
+
+# 或强制重启
+python game_control.py frestart
+```
 
 ---
 
 ## ✅ 安装完成确认清单
 
-Claude 完成安装后应确认：
+Claude 在安装完成后确认：
 
-- [ ] Y3 Helper 插件已修改（runLua 命令已添加）
+- [ ] Y3 Helper 插件已安装
+- [ ] print 消息转发补丁已应用
+- [ ] 调试器异常捕获补丁已应用
+- [ ] runLua 命令已添加到插件
+- [ ] debugs.lua 包含消息处理器
 - [ ] 编辑器已重启
-- [ ] main.lua 包含 `require 'base.debugs'`（加载调试模块）
-- [ ] debugs.lua 包含 Y3 Helper 消息处理器
-- [ ] 工具脚本已复制到项目 tools/ 目录
-- [ ] launch_game.bat 已生成（路径正确，包含 chcp 65001）
-- [ ] 计划任务 Y3LaunchGame 已创建
-- [ ] `python game_control.py launch` 能启动游戏（无UAC弹窗）
-- [ ] `python game_control.py test` 测试通过
+- [ ] 游戏能通过 `game_control.py launch` 启动
+- [ ] 消息能正确写入 `%TEMP%\y3helper_messages.jsonl`
+- [ ] 异常能被捕获到消息文件
