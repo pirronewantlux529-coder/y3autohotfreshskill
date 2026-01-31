@@ -6,6 +6,13 @@ Y3（英雄三国，KK对战平台游戏）游戏热更新与测试调试工具�
 
 **🎯 支持无人值守自动对某个模块进行不断的调试优化迭代！**
 
+## 🎬 效果演示
+
+<p align="center">
+  <img src="game_control_demo1.gif" alt="游戏控制演示1" width="480">
+  <img src="game_control_demo2.gif" alt="游戏控制演示2" width="480">
+</p>
+
 ## 适用人群
 
 - 🚀 Y3 地图编辑器 Lua 作者
