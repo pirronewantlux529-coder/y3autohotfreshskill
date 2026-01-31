@@ -108,7 +108,19 @@ def auto_detect_config():
     # 1. 检测 script 路径
     script_path = detect_script_path()
     if not script_path:
-        config['errors'].append('无法检测 script 路径，请确保 tools 目录在正确位置')
+        config['errors'].append('无法检测 script 路径（找不到 main.lua）')
+        config['errors'].append('')
+        config['errors'].append('tools 目录必须位于: <项目>/maps/<地图>/script/tools/')
+        config['errors'].append('正确结构:')
+        config['errors'].append('  你的项目/')
+        config['errors'].append('    maps/')
+        config['errors'].append('      地图名/')
+        config['errors'].append('        script/')
+        config['errors'].append('          main.lua    <-- 必须存在')
+        config['errors'].append('          tools/      <-- 你应该在这里')
+        config['errors'].append('            config.py')
+        config['errors'].append('')
+        config['errors'].append('请将整个 tools 文件夹复制到正确位置后重试')
         return config
     config['script_path'] = script_path
 

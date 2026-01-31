@@ -29,17 +29,41 @@ Claude 在开始安装前需要向用户确认以下信息：
 
 ### 步骤 0：复制 tools 目录到项目（重要！）
 
-将仓库中的 `tools` 目录复制到你的项目 `script` 目录下：
+**tools 目录必须放在项目的 script 目录下，不能放在其他位置！**
 
+#### 正确的目录结构
+
+```
+你的Y3项目/                        # 项目根目录（包含 header.project）
+├── header.project                 # 项目配置文件
+├── maps/
+│   └── 你的地图名/
+│       └── script/                # 脚本目录（包含 main.lua）
+│           ├── main.lua           # 游戏入口
+│           ├── .vscode/           # VSCode/Cursor 配置（Y3 Helper 自动创建）
+│           │   └── settings.json  # 包含 Y3-Helper.EditorPath
+│           ├── tools/             # ⭐ tools 必须在这里！
+│           │   ├── config.py
+│           │   ├── game_control.py
+│           │   └── ...
+│           └── ...
+```
+
+#### 复制方法
+
+**方法 1：命令行复制**
 ```bash
 # 假设你已克隆仓库到 .claude/skills/y3-game-test
 cd <你的项目>/maps/<地图名>/script
 cp -r .claude/skills/y3-game-test/tools ./tools
 ```
 
-或手动复制：将 `y3-game-test/tools/` 文件夹整个复制到 `<项目>/maps/<地图>/script/tools/`
+**方法 2：手动复制**
+1. 打开仓库目录，找到 `tools` 文件夹
+2. 复制整个 `tools` 文件夹
+3. 粘贴到你项目的 `script` 目录下
 
-> ⚠️ **必须先完成这一步，后续步骤都依赖 tools 目录中的脚本！**
+> ⚠️ **关键检查**：复制后，`tools` 目录和 `main.lua` 应该在同一层级！
 
 ### 步骤 1：验证配置检测
 
