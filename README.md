@@ -69,6 +69,12 @@ python game_control.py run debug_template
 
 # 简单打印测试
 python game_control.py test
+
+# 启动错误监听器（新窗口）
+python game_control.py listen
+
+# 在游戏中启用错误发送
+python game_control.py errors
 ```
 
 ### Claude Code

@@ -183,6 +183,18 @@ def print_test():
     """简单打印测试"""
     return run_lua_code("print('[测试] Hello from game_control.py!')")
 
+def start_error_listener():
+    """启动错误监听器"""
+    import subprocess
+    listener_path = os.path.join(os.path.dirname(__file__), 'error_listener.py')
+    subprocess.Popen([sys.executable, listener_path], creationflags=subprocess.CREATE_NEW_CONSOLE)
+    print('[OK] 错误监听器已在新窗口启动')
+    print('[提示] 在游戏中执行: _reloadlua("tools.error_sender")')
+
+def enable_error_sender():
+    """在游戏中启用错误发送器"""
+    return run_lua_code("_reloadlua('tools.error_sender')")
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -195,6 +207,8 @@ def main():
         print('  run <script>     - 执行 tools/ 下的 lua 脚本')
         print('  lua "代码"       - 执行任意 Lua 代码')
         print('  test             - 简单打印测试')
+        print('  listen           - 启动错误监听器（新窗口）')
+        print('  errors           - 在游戏中启用错误发送器')
         print('\n选项:')
         print('  --no-wait        - 不等待日志更新确认')
         return
@@ -228,6 +242,10 @@ def main():
         run_lua_code(args[1])
     elif cmd == 'test':
         print_test()
+    elif cmd == 'listen':
+        start_error_listener()
+    elif cmd == 'errors':
+        enable_error_sender()
     else:
         # 尝试作为 Lua 代码执行
         raw_cmd = ' '.join(args)

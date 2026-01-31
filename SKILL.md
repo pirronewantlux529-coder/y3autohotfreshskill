@@ -91,10 +91,42 @@ print('字段A:', save.fieldA)
 
 ## 错误检测
 
+### 方式1：日志文件检查
+
 ```bash
 grep "\[error\]" .log/lua_player01.log
 # 无输出 = 测试通过
 # 有输出 = 必须修复
+```
+
+### 方式2：实时错误监听（推荐）
+
+当错误不在日志文件中（如Y3 Helper发到Cursor的错误），使用错误监听器：
+
+```bash
+# 终端1：启动监听器
+python game_control.py listen
+# 或直接运行
+python error_listener.py
+
+# 终端2：在游戏中启用错误发送
+python game_control.py errors
+# 或在游戏中执行: _reloadlua('tools.error_sender')
+```
+
+之后所有错误会实时显示在监听器窗口中。
+
+### 错误监听架构
+
+```
+游戏端                    Python监听器
+   │                          │
+   ├─ error_sender.lua        │
+   │   hook log.error         │
+   │         │                │
+   │         ▼                │
+   └──► socket:12999 ────────►│ 实时显示错误
+                              │
 ```
 
 ## WSL 注意事项
