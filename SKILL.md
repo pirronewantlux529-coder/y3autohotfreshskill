@@ -11,6 +11,28 @@ description: Y3 ORPG游戏热更新与测试工具。通过 Y3 Helper 发送热�
 1. **Cursor/VSCode 必须已打开项目** - Y3 Helper 插件在编辑器中运行
 2. **首次使用需要安装配置** - 参见 `Y3_HELPER_SETUP.md`
 
+## 🚀 启动游戏标准流程（必读！）
+
+**启动游戏前必须先开启监听器！**
+
+```bash
+cd <项目路径>/tools
+
+# 第1步：后台启动监听器（捕获错误消息）
+python file_listener.py &
+
+# 第2步：启动游戏
+python game_control.py launch
+
+# 第3步：等待加载（约15秒）
+sleep 15
+
+# 第4步：进入游戏
+python game_control.py enter
+```
+
+> ⚠️ **不开监听器 = 看不到错误！** 监听器会实时显示游戏端的 print/log 和引擎异常。
+
 ## 功能速查
 
 | 功能 | game_control.py 命令 |
