@@ -142,7 +142,7 @@ y3-game-test/
 
 ## 注意事项
 
-1. **必须先启动编辑器** - Y3 Helper 在编辑器中运行
+1. **必须先启动 VSCode/Cursor** - Y3 Helper 插件在代码编辑器中运行（不是游戏编辑器）
 2. **不要直接启动游戏 exe** - 会闪退，必须通过计划任务或 Y3 Helper
 3. **WSL 用户** - 需要使用 Windows Python (`/mnt/c/Windows/py.exe`)
 4. **中文路径** - launch_game.bat 需要包含 `chcp 65001` 解决乱码
