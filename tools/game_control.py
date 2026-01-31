@@ -22,6 +22,30 @@ import json
 import sys
 import os
 import re
+import time
+
+# 日志文件路径（相对于脚本目录）
+LOG_FILE = os.path.join(os.path.dirname(__file__), '..', '.log', 'lua_player01.log')
+
+def get_log_mtime():
+    """获取日志文件修改时间"""
+    try:
+        return os.path.getmtime(LOG_FILE)
+    except:
+        return 0
+
+def wait_for_log_update(timeout=30, initial_mtime=None):
+    """等待日志文件更新，确认命令已执行"""
+    if initial_mtime is None:
+        initial_mtime = get_log_mtime()
+
+    start = time.time()
+    while time.time() - start < timeout:
+        current_mtime = get_log_mtime()
+        if current_mtime > initial_mtime:
+            return True
+        time.sleep(0.5)
+    return False
 
 def read_port():
     """读取 Y3 Helper 端口"""
@@ -97,14 +121,33 @@ def run_lua_code(code):
         return True
     return False
 
-def run_lua_file(filename):
-    """执行 tools 目录下的 Lua 脚本"""
+def run_lua_file(filename, wait_log=True, log_timeout=30):
+    """执行 tools 目录下的 Lua 脚本
+
+    Args:
+        filename: 脚本名（不含.lua后缀）
+        wait_log: 是否等待日志更新确认执行
+        log_timeout: 等待超时时间(秒)
+    """
+    # 记录发送前的日志修改时间
+    initial_mtime = get_log_mtime() if wait_log else None
+
     lua_path = f"tools.{filename}"
     if lua_path.endswith('.lua'):
         lua_path = lua_path[:-4]
     code = f"_reloadlua('{lua_path}')"
     if send_y3helper('y3-helper.runLua', [code]):
         print(f'[OK] 执行脚本: {lua_path}')
+
+        # 等待日志更新确认命令已执行
+        if wait_log:
+            print(f'[等待] 等待游戏执行...')
+            if wait_for_log_update(log_timeout, initial_mtime):
+                print(f'[OK] 命令已执行（日志已更新）')
+                return True
+            else:
+                print(f'[警告] 等待超时，命令可能未执行')
+                return False
         return True
     return False
 
@@ -131,34 +174,40 @@ def main():
         print('  run <script>     - 执行 tools/ 下的 lua 脚本')
         print('  lua "代码"       - 执行任意 Lua 代码')
         print('  test             - 简单打印测试')
+        print('\n选项:')
+        print('  --no-wait        - 不等待日志更新确认')
         return
 
-    cmd = sys.argv[1].lower()
+    # 检查是否有 --no-wait 选项
+    wait_log = '--no-wait' not in sys.argv
+    args = [a for a in sys.argv[1:] if a != '--no-wait']
+
+    cmd = args[0].lower() if args else ''
 
     if cmd == 'launch' or cmd == 'start':
         launch_game()
     elif cmd == 'reload':
-        module = sys.argv[2] if len(sys.argv) > 2 else 'base.hotfresh'
+        module = args[1] if len(args) > 1 else 'base.hotfresh'
         reload_lua(module)
     elif cmd == 'restart':
         restart_game()
     elif cmd == 'enter':
         quick_enter()
     elif cmd == 'run':
-        if len(sys.argv) < 3:
+        if len(args) < 2:
             print('[错误] 请指定要执行的脚本名')
             return
-        run_lua_file(sys.argv[2])
+        run_lua_file(args[1], wait_log=wait_log)
     elif cmd == 'lua':
-        if len(sys.argv) < 3:
+        if len(args) < 2:
             print('[错误] 请指定要执行的 Lua 代码')
             return
-        run_lua_code(sys.argv[2])
+        run_lua_code(args[1])
     elif cmd == 'test':
         print_test()
     else:
         # 尝试作为 Lua 代码执行
-        raw_cmd = ' '.join(sys.argv[1:])
+        raw_cmd = ' '.join(args)
         run_lua_code(raw_cmd)
 
 if __name__ == '__main__':
