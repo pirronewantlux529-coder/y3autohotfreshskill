@@ -76,7 +76,11 @@ python game_control.py lua "print('[test] 游戏已就绪')"
 | 单步跳出 | `stepout` | `o` |
 | 断点执行 | `break "代码"` | - |
 
-> **注意**：`kill` 和 `frestart` 只杀游戏进程，不杀编辑器。首次使用需以管理员运行 `setup_kill_task.bat` 创建计划任务。
+> **首次使用前必须创建计划任务**（以管理员身份运行）：
+> - `setup_launch_task.bat` - 创建启动游戏任务（无UAC弹窗启动）
+> - `setup_kill_task.bat` - 创建杀进程任务（kill/frestart 需要）
+>
+> 不创建计划任务也能用，但会弹UAC确认框。
 
 ## 🚨 异常处理流程（重要！）
 

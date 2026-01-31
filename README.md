@@ -119,7 +119,11 @@ python game_control.py listen
 python game_control.py errors
 ```
 
-> **首次使用 kill/frestart**：需以管理员身份运行 `setup_kill_task.bat` 创建计划任务，否则无权限杀进程。
+> **首次使用前必须创建计划任务**（以管理员身份运行）：
+> - `setup_launch_task.bat` - 创建启动游戏任务（无UAC弹窗启动）
+> - `setup_kill_task.bat` - 创建杀进程任务（强制杀游戏进程）
+>
+> 不创建也能用，但会弹UAC确认框。
 
 ### Claude Code
 

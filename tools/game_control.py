@@ -387,7 +387,13 @@ def force_restart():
     return True
 
 def launch_game():
-    """通过计划任务启动游戏（无UAC弹窗）"""
+    """启动游戏（自动选择最佳方式）
+
+    尝试顺序：
+    1. 计划任务（无UAC弹窗）
+    2. 直接启动（需要UAC确认）
+    """
+    # 1. 尝试计划任务方式（无UAC）
     try:
         result = subprocess.run(
             ['schtasks', '/run', '/tn', 'Y3LaunchGame'],
@@ -397,13 +403,13 @@ def launch_game():
             print('[OK] 游戏启动命令已发送（通过计划任务，无UAC弹窗）')
             return True
         else:
-            print(f'[错误] 计划任务执行失败: {result.stderr}')
-            print('[提示] 请先运行 setup_no_uac.bat 创建计划任务')
-            print('[提示] 或使用 launch2 通过 Y3 Helper 启动（会弹UAC）')
-            return False
+            print('[提示] 计划任务未配置，尝试直接启动...')
     except Exception as e:
-        print(f'[错误] {e}')
-        return False
+        print(f'[提示] 计划任务检测失败: {e}，尝试直接启动...')
+
+    # 2. 回退到直接启动方式
+    print('[提示] 如需无UAC启动，请以管理员身份运行 setup_launch_task.bat')
+    return launch_game_direct()
 
 def launch_game_y3helper():
     """通过 Y3 Helper 启动游戏（备用方式，会弹UAC）"""
@@ -411,6 +417,53 @@ def launch_game_y3helper():
         print('[OK] 游戏启动命令已发送（通过Y3 Helper）')
         return True
     return False
+
+
+def launch_game_direct():
+    """直接启动游戏（会弹UAC，但不依赖Y3 Helper）
+
+    使用自动检测的配置直接运行游戏可执行文件。
+    适用于 Y3 Helper 不可用的情况。
+    """
+    from config import get_config, get_game_args
+
+    config = get_config()
+    if config['errors']:
+        print('[错误] 配置检测失败:')
+        for err in config['errors']:
+            print(f'  - {err}')
+        return False
+
+    game_exe = config.get('game_exe')
+    if not game_exe or not os.path.exists(game_exe):
+        print(f'[错误] 找不到游戏可执行文件: {game_exe}')
+        return False
+
+    args = get_game_args(config, debug=True)
+    if not args:
+        print('[错误] 无法生成启动参数')
+        return False
+
+    game_dir = os.path.dirname(game_exe)
+
+    print('[启动游戏] 配置信息:')
+    print(f'  游戏路径: {game_exe}')
+    print(f'  项目路径: {config.get("project_path")}')
+    print(f'  关卡 ID: {config.get("level_id")}')
+
+    try:
+        # 使用 subprocess.Popen 启动游戏（非阻塞）
+        subprocess.Popen(
+            [game_exe] + args,
+            cwd=game_dir,
+            creationflags=subprocess.CREATE_NEW_CONSOLE
+        )
+        print('[OK] 游戏启动命令已发送（直接启动，可能需要UAC确认）')
+        return True
+    except Exception as e:
+        print(f'[错误] 启动失败: {e}')
+        return False
+
 
 def debug_continue():
     """让卡在断点/异常的游戏继续运行"""

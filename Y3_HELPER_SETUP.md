@@ -185,16 +185,27 @@ if y3.develop and y3.develop.helper then
 end
 ```
 
-### 步骤 6：创建计划任务（可选，用于强制杀进程）
+### 步骤 6：创建计划任务（推荐，无UAC弹窗）
 
-以管理员权限运行：
+以管理员权限运行以下脚本创建计划任务：
 
 ```bash
 cd <项目路径>/tools
+
+# 1. 创建启动游戏的计划任务
+setup_launch_task.bat
+
+# 2. 创建杀进程的计划任务
 setup_kill_task.bat
 ```
 
-这会创建计划任务，允许无 UAC 弹窗杀掉游戏进程。
+**创建后的效果：**
+- `setup_launch_task.bat` → 创建 `Y3LaunchGame` 任务 → `launch` 命令无UAC弹窗启动游戏
+- `setup_kill_task.bat` → 创建 `Y3KillGame` 任务 → `kill`/`frestart` 命令无UAC弹窗杀进程
+
+**不创建计划任务也能使用**，但每次会弹出UAC确认框。
+
+> ⚠️ **必须以管理员身份运行**：右键点击 bat 文件 → "以管理员身份运行"
 
 ### 步骤 7：重启编辑器
 
@@ -233,12 +244,16 @@ tail "$TEMP/y3helper_messages.jsonl"
 ```
 <项目路径>/tools/
 ├── game_control.py              # 游戏控制主脚本
+├── config.py                    # 配置自动检测（无需手动配置）
 ├── file_listener.py             # 消息文件监听器
 ├── error_sender.lua             # 游戏端错误发送模块
 ├── patch_y3helper_http.py       # 补丁1：print消息转发
 ├── patch_debugger_exception.py  # 补丁2：异常捕获
 ├── install_y3helper_runlua.py   # runLua命令安装
-├── setup_kill_task.bat          # 计划任务安装
+├── setup_launch_task.bat        # 创建启动游戏计划任务
+├── setup_kill_task.bat          # 创建杀进程计划任务
+├── launch_game.ps1              # 游戏启动脚本（计划任务调用）
+├── kill_game.ps1                # 杀进程脚本（计划任务调用）
 ├── quick_enter.lua              # 快速进入游戏
 ├── restart_game.lua             # 重启游戏
 └── temp/                        # 临时 Lua 脚本目录
