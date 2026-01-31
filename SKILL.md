@@ -67,15 +67,29 @@ python game_control.py lua "print('[test] 游戏已就绪')"
 
 当遇到引擎级异常（如 "attempt to call a nil value"）时，游戏会卡在断点。
 
-### ⭐ 推荐流程：渐进式恢复
+### 🔍 查看异常信息（必做！）
 
-当命令执行无响应或疑似卡住时，按以下顺序尝试：
+**游戏卡住时，第一步永远是查看异常消息文件：**
 
 ```bash
-# 第1步：再发一次命令（可能只是网络延迟）
-python game_control.py run test_script
+# 查看最近的异常和错误消息
+tail -20 "$TEMP/y3helper_messages.jsonl"
 
-# 第2步：尝试继续运行（可能卡在断点/异常）
+# 或用 grep 过滤异常
+grep "exception\|error" "$TEMP/y3helper_messages.jsonl" | tail -10
+```
+
+> ⚠️ **异常信息在消息文件里，不在游戏日志里！** 引擎级异常通过 Y3 Helper 补丁捕获，写入 `%TEMP%/y3helper_messages.jsonl`
+
+### ⭐ 推荐流程：渐进式恢复
+
+当命令执行无响应或疑似卡住时：
+
+```bash
+# 第1步：先查看异常信息（了解问题原因）
+tail -20 "$TEMP/y3helper_messages.jsonl"
+
+# 第2步：尝试继续运行（从异常恢复）
 python game_control.py c
 
 # 第3步：如果还是不行，强制重启
