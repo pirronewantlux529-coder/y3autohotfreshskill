@@ -99,19 +99,24 @@ python <skill目录>/tools/install_y3helper_runlua.py
 
 **Claude 自动检查并修改：**
 
-#### 2.1 检查 main.lua
+#### 2.1 检查 main.lua 是否加载 debugs.lua
 
-```python
-main_lua = "<项目路径>/main.lua"
-# 检查是否包含 require 'base.debugs'
-# 如果没有，提示用户添加：
-"""
-if debug.sethook then
+Claude 读取 `<项目路径>/main.lua`，搜索是否包含 `require 'base.debugs'` 或 `require('base.debugs')`。
+
+**如果没有找到**，Claude 需要添加以下代码到 main.lua 的初始化部分：
+
+```lua
+if debug.sethook then     --是本地开发环境
     y3.config.debug = true
-    require 'base.debugs'
+    require 'base.debugs' --debug功能开启
 end
-"""
 ```
+
+**Claude 操作步骤：**
+1. 读取 main.lua 文件
+2. 搜索 `base.debugs`
+3. 如果没有，找到合适的位置（通常在文件开头的初始化部分）添加上述代码
+4. 向用户确认修改
 
 #### 2.2 修改 base/debugs.lua
 
@@ -132,7 +137,11 @@ if y3.develop and y3.develop.helper then
 end
 ```
 
-如果没有，从 `examples/debugs_y3helper_patch.lua` 复制代码添加到文件末尾。
+**Claude 操作步骤：**
+1. 读取 `base/debugs.lua` 文件
+2. 搜索 `y3.develop.helper` 或 `registerMethod`
+3. 如果没有找到，将上述代码添加到文件末尾
+4. 完整的 debugs.lua 补丁代码在 `examples/debugs_y3helper_patch.lua`
 
 ---
 
@@ -258,11 +267,12 @@ grep "Hello from game_control" <项目路径>/.log/lua_player01.log
 
 Claude 完成安装后应确认：
 
-- [ ] Y3 Helper 插件已修改（runLua 命令）
+- [ ] Y3 Helper 插件已修改（runLua 命令已添加）
 - [ ] 编辑器已重启
-- [ ] debugs.lua 包含消息处理器
-- [ ] 工具脚本已复制
-- [ ] launch_game.bat 已生成（路径正确）
-- [ ] 计划任务已创建
-- [ ] `python game_control.py launch` 测试通过
+- [ ] main.lua 包含 `require 'base.debugs'`（加载调试模块）
+- [ ] debugs.lua 包含 Y3 Helper 消息处理器
+- [ ] 工具脚本已复制到项目 tools/ 目录
+- [ ] launch_game.bat 已生成（路径正确，包含 chcp 65001）
+- [ ] 计划任务 Y3LaunchGame 已创建
+- [ ] `python game_control.py launch` 能启动游戏（无UAC弹窗）
 - [ ] `python game_control.py test` 测试通过
