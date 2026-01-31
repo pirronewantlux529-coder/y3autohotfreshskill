@@ -39,3 +39,9 @@ if y3.develop and y3.develop.helper then
         print('[debugs] Y3 Helper command 处理器已注册')
     end)
 end
+
+-- 自动加载错误发送器（发送错误到外部监听器）
+-- 需要先启动 python error_listener.py
+pcall(function()
+    require 'tools.error_sender'
+end)

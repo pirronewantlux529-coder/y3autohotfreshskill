@@ -104,17 +104,13 @@ grep "\[error\]" .log/lua_player01.log
 当错误不在日志文件中（如Y3 Helper发到Cursor的错误），使用错误监听器：
 
 ```bash
-# 终端1：启动监听器
-python game_control.py listen
-# 或直接运行
+# 启动监听器
 python error_listener.py
-
-# 终端2：在游戏中启用错误发送
-python game_control.py errors
-# 或在游戏中执行: _reloadlua('tools.error_sender')
 ```
 
-之后所有错误会实时显示在监听器窗口中。
+**error_sender 会随游戏启动自动加载**（通过 debugs.lua），无需手动执行。
+
+只需保持监听器运行，所有错误会实时显示。
 
 ### 错误监听架构
 
