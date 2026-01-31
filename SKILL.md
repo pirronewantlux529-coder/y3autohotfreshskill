@@ -6,37 +6,52 @@ description: Y3 ORPG游戏热更新与测试工具。通过 Y3 Helper 发送热�
 
 通过 Y3 Helper 实现游戏启动、热更新和远程执行 Lua 代码。
 
-## ⚠️ 前提条件
+## 🚨🚨🚨 强制要求：必须先启动监听器！🚨🚨🚨
 
-1. **Cursor/VSCode 必须已打开项目** - Y3 Helper 插件在编辑器中运行
-2. **首次使用需要安装配置** - 参见 `Y3_HELPER_SETUP.md`
-
-## 🚀 启动游戏标准流程（必读！）
-
-**启动游戏前必须先开启监听器！**
+**在执行任何游戏操作之前，必须先启动错误监听器！这是强制要求，不是可选的！**
 
 ```bash
 cd <项目路径>/tools
 
-# 第1步：后台启动监听器（捕获错误消息）
+# ████ 第1步：启动监听器（必须！否则看不到任何错误！）████
+python file_listener.py &
+# 或在新终端窗口运行: python file_listener.py
+```
+
+**不启动监听器的后果：**
+- ❌ 看不到游戏端的 print/log 输出
+- ❌ 看不到引擎级异常（如 "attempt to call a nil value"）
+- ❌ 无法判断命令是否执行成功
+- ❌ 调试时完全盲目
+
+## 🚀 标准启动流程
+
+```bash
+cd <项目路径>/tools
+
+# 1. 启动监听器（必须先做！）
 python file_listener.py &
 
-# 第2步：启动游戏
+# 2. 启动游戏
 python game_control.py launch
 
-# 第3步：等待加载（约30秒）
-sleep 30
+# 3. 等待加载（约15-30秒）
+sleep 20
 
-# 第4步：进入游戏
+# 4. 进入游戏
 python game_control.py enter
 
-# 第5步：验证是否进入成功（看监听器是否有打印输出）
+# 5. 等待进入（约8秒）
+sleep 8
+
+# 6. 验证（监听器应该显示打印内容）
 python game_control.py lua "print('[test] 游戏已就绪')"
 ```
 
-> ⚠️ **不开监听器 = 看不到错误！** 监听器会实时显示游戏端的 print/log 和引擎异常。
->
-> 💡 **判断是否进入游戏**：发送 lua 命令，如果监听器显示打印内容则说明已进入。
+## ⚠️ 前提条件
+
+1. **Cursor/VSCode 必须已打开项目** - Y3 Helper 插件在编辑器中运行
+2. **首次使用需要安装配置** - 参见 `Y3_HELPER_SETUP.md`
 
 ## 功能速查
 
