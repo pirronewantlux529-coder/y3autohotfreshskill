@@ -84,31 +84,28 @@ def wait_for_log_update(timeout=30, initial_mtime=None):
 PORT = 65432
 TIMEOUT = 5
 
-# 游戏启动配置
-GAME_EXE = r'd:\Y3\y3\games\2.0\game\Engine\Binaries\Win64\Game_x64h.exe'
+# 导入配置模块（自动检测路径）
+try:
+    from config import get_config, get_game_args
+    _CONFIG = None
 
-# 不带调试器的启动参数（用于批量测试，错误会写入日志）
-GAME_ARGS_NO_DEBUG = [
-    '--dx11',
-    '--start=Python',
-    '--python-args=type@editor_game,subtype@editor_game,editor_map_path@d:\\Y3\\ORPG项目总包\\ORPG,level_id@129406483677115854938498460620380268465,release@true,lua_dummy@space,lua_wait_debugger@false',
-    '--plugin-config=Plugins-PyQt',
-    '--console',
-    '--luaconsole'
-]
-
-# 带调试器的启动参数（用于调试，错误会在 Cursor 中定位）
-GAME_ARGS_DEBUG = [
-    '--dx11',
-    '--start=Python',
-    '--python-args=type@editor_game,subtype@editor_game,editor_map_path@d:\\Y3\\ORPG项目总包\\ORPG,level_id@129406483677115854938498460620380268465,release@true,lua_dummy@space,lua_wait_debugger@true',
-    '--plugin-config=Plugins-PyQt',
-    '--console',
-    '--luaconsole'
-]
-
-# 默认使用不带调试器的参数
-GAME_ARGS = GAME_ARGS_NO_DEBUG
+    def _get_cached_config():
+        global _CONFIG
+        if _CONFIG is None:
+            _CONFIG = get_config()
+        return _CONFIG
+except ImportError:
+    # 配置模块不存在时的后备方案
+    _CONFIG = None
+    def _get_cached_config():
+        return {
+            'game_exe': None,
+            'project_path': None,
+            'level_id': None,
+            'errors': ['config.py 模块不存在'],
+        }
+    def get_game_args(config, debug=False):
+        return []
 
 def send_command(cmd, wait_log=False, log_timeout=30, check_game=True):
     """发送命令到游戏（带认证）
@@ -261,18 +258,29 @@ def goto_training():
     """传送到演武场（战斗测试区域）"""
     return run_lua_file('goto_training')
 
-def start_game():
-    """启动游戏客户端（旧方法，不推荐）"""
-    if not os.path.exists(GAME_EXE):
-        print(f'[错误] 游戏可执行文件不存在: {GAME_EXE}')
+def start_game(debug=False):
+    """启动游戏客户端（使用自动检测的配置）"""
+    config = _get_cached_config()
+
+    if config.get('errors'):
+        print('[错误] 配置检测失败:')
+        for err in config['errors']:
+            print(f'  - {err}')
         return False
 
+    game_exe = config.get('game_exe')
+    if not game_exe or not os.path.exists(game_exe):
+        print(f'[错误] 游戏可执行文件不存在: {game_exe}')
+        print('[提示] 请确保 .vscode/settings.json 中有正确的 Y3-Helper.EditorPath')
+        return False
+
+    game_args = get_game_args(config, debug=debug)
+
     try:
-        cmd = [GAME_EXE] + GAME_ARGS
+        cmd = [game_exe] + game_args
         print(f'[启动] 正在启动游戏...')
-        print(f'[命令] {GAME_EXE}')
-        for arg in GAME_ARGS:
-            print(f'       {arg}')
+        print(f'[配置] 项目: {config.get("project_path")}')
+        print(f'[配置] 关卡ID: {config.get("level_id")}')
 
         # 使用 Popen 在后台启动，不等待进程结束
         subprocess.Popen(cmd, creationflags=subprocess.CREATE_NEW_CONSOLE)
@@ -447,10 +455,20 @@ def show_status():
     else:
         print(f'[游戏] 未运行 - {msg}')
 
+
+def show_config():
+    """显示自动检测的配置"""
+    try:
+        from config import print_config
+        print_config()
+    except ImportError:
+        print('[错误] config.py 模块不存在')
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
         print('\n快捷命令:')
+        print('  config           - 显示自动检测的配置（路径、关卡ID等）')
         print('  status           - 检查游戏运行状态')
         print('  launch           - 启动游戏 (通过计划任务，无UAC弹窗)')
         print('  launch2          - 启动游戏 (通过Y3 Helper，会弹UAC)')
@@ -480,7 +498,9 @@ def main():
 
     cmd = args[0].lower() if args else ''
 
-    if cmd == 'status':
+    if cmd == 'config':
+        show_config()
+    elif cmd == 'status':
         show_status()
     elif cmd == 'kill':
         kill_game()

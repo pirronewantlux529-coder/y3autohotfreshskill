@@ -36,7 +36,13 @@ cd <你的Y3项目>/maps/<地图>/script/.claude/skills
 git clone https://github.com/pirronewantlux529-coder/y3autohotfreshskill.git y3-game-test
 ```
 
-2. **让 Claude Code 完成配置：**
+2. **复制 tools 目录到项目 script 目录：**
+
+```bash
+cp -r y3-game-test/tools ../../tools
+```
+
+3. **让 Claude Code 完成配置：**
 
 直接告诉 Claude Code：
 
@@ -46,13 +52,26 @@ git clone https://github.com/pirronewantlux529-coder/y3autohotfreshskill.git y3-
 
 Claude 会自动：
 
-- 搜索并确认 Y3 编辑器路径、项目路径
 - 修改 Y3 Helper 插件（添加 runLua 命令）
 - 检查并配置 main.lua 和 debugs.lua
-- 复制工具脚本
-- 生成 launch_game.bat
 - 创建计划任务（无UAC启动）
 - 验证安装
+
+### 🎉 自动配置（无需手动设置路径！）
+
+**所有路径自动从项目文件检测，无需手动配置：**
+
+| 配置项 | 自动读取位置 |
+|--------|-------------|
+| 游戏可执行文件 | `.vscode/settings.json` → `Y3-Helper.EditorPath` |
+| 关卡 ID | `header.project` → `entry_map.id` |
+| 项目路径 | 从 `tools` 目录位置自动推断 |
+
+**验证配置：**
+```bash
+cd <项目>/script/tools
+python game_control.py config
+```
 
 ### 方法 2：手动安装
 
