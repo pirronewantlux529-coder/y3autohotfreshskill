@@ -160,11 +160,25 @@ function M.send(level, message)
     })
 end
 
+-- 强制重连
+function M.reconnect()
+    connected = false
+    connecting = false
+    if client then
+        pcall(function() client:close() end)
+        client = nil
+    end
+    createConnection()
+    print('[error_sender] 正在重新连接...')
+end
+
 -- 初始化
 local function init()
     -- 检查是否已经初始化
     if rawget(_G, '__error_sender_inited') then
-        print('[error_sender] 已初始化，跳过')
+        -- 已初始化，但可以强制重连
+        print('[error_sender] 已初始化，尝试重连')
+        M.reconnect()
         return
     end
     rawset(_G, '__error_sender_inited', true)

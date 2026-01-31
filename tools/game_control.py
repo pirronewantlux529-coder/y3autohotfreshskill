@@ -180,6 +180,45 @@ def run_lua_file(filename, wait_log=True):
         lua_path = lua_path[:-4]
     return send_command(f"热更新('{lua_path}')", wait_log=wait_log)
 
+def run_lua_code(code, wait_log=True):
+    """执行任意Lua代码（创建临时文件后热更新）
+
+    Args:
+        code: Lua代码字符串
+        wait_log: 是否等待日志更新确认执行
+    """
+    import uuid
+
+    # 获取tools目录
+    tools_dir = os.path.dirname(os.path.abspath(__file__))
+    temp_dir = os.path.join(tools_dir, 'temp')
+    os.makedirs(temp_dir, exist_ok=True)
+
+    # 清理旧的临时文件（超过1分钟的）
+    try:
+        for f in os.listdir(temp_dir):
+            if f.startswith('_temp_'):
+                fp = os.path.join(temp_dir, f)
+                if time.time() - os.path.getmtime(fp) > 60:
+                    os.remove(fp)
+    except:
+        pass
+
+    # 创建唯一文件名
+    temp_name = f'_temp_{uuid.uuid4().hex[:8]}'
+    temp_file = os.path.join(temp_dir, f'{temp_name}.lua')
+
+    # 写入临时文件
+    with open(temp_file, 'w', encoding='utf-8') as f:
+        f.write(f'-- 临时执行脚本\n')
+        f.write(code)
+        f.write('\n')
+
+    # 通过热更新执行（不立即删除文件，让游戏有时间读取）
+    lua_path = f'tools.temp.{temp_name}'
+    result = send_command(f"热更新('{lua_path}')", wait_log=wait_log)
+    return result
+
 def restart():
     """重启游戏（通过热更新restart_game.lua）"""
     return run_lua_file('restart_game')
@@ -355,6 +394,7 @@ def main():
         print('  pet              - 打开宠物测试界面')
         print('  goto             - 传送到演武场（战斗测试区域）')
         print('  run <script>     - 执行 tools/ 下的 lua 脚本')
+        print('  lua "代码"       - 执行任意 Lua 代码')
         print('\n选项:')
         print('  --no-wait        - 不等待日志更新确认')
         return
@@ -397,6 +437,12 @@ def main():
             print('[错误] 请指定要执行的脚本名')
             return
         run_lua_file(args[1], wait_log=wait_log)
+    elif cmd == 'lua':
+        if len(args) < 2:
+            print('[错误] 请指定要执行的 Lua 代码')
+            return
+        code = ' '.join(args[1:])
+        run_lua_code(code, wait_log=wait_log)
     else:
         # 直接发送原始命令
         raw_cmd = ' '.join(args)
