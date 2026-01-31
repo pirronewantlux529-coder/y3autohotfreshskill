@@ -58,8 +58,14 @@ python game_control.py reload
 # 快速进入游戏
 python game_control.py enter
 
-# 重启游戏
+# 重启游戏（游戏内切换关卡，卡死时无效）
 python game_control.py restart
+
+# 强制杀游戏进程（只杀游戏，不杀编辑器）
+python game_control.py kill
+
+# 强制重启（杀进程 → 启动 → 进入游戏）
+python game_control.py frestart
 
 # 执行 Lua 代码
 python game_control.py lua "print('Hello!')"
@@ -76,6 +82,8 @@ python game_control.py listen
 # 在游戏中启用错误发送
 python game_control.py errors
 ```
+
+> **首次使用 kill/frestart**：需以管理员身份运行 `setup_kill_task.bat` 创建计划任务，否则无权限杀进程。
 
 ### Claude Code
 

@@ -15,12 +15,16 @@ description: Y3 ORPG游戏热更新与测试工具。通过 Y3 Helper 发送热�
 
 | 功能 | Y3 Helper 命令 | game_control.py |
 |------|----------------|-----------------|
-| 启动游戏 | `y3-helper.launchGame` | - |
+| 启动游戏 | `y3-helper.launchGame` | `python game_control.py launch` |
 | 热更新 | `y3-helper.reloadLua` | `python game_control.py reload` |
 | 执行 Lua | `y3-helper.runLua` | `python game_control.py run <脚本>` |
 | 快速进入 | - | `python game_control.py enter` |
 | 重启游戏 | - | `python game_control.py restart` |
+| **强制杀游戏** | - | `python game_control.py kill` |
+| **强制重启** | - | `python game_control.py frestart` |
 | 宠物测试 | - | `python game_control.py pet` |
+
+> **注意**：`kill` 和 `frestart` 只杀游戏进程，不杀编辑器。首次使用需以管理员运行 `setup_kill_task.bat` 创建计划任务。
 
 ## 核心 API
 

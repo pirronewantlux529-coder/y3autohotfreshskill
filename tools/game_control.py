@@ -26,6 +26,39 @@ import re
 
 HOST = '127.0.0.1'
 
+def is_game_running():
+    """检查游戏是否在运行（Game_x64h 且有 conhost 子进程）
+
+    Returns:
+        tuple: (是否运行, 详情消息)
+    """
+    try:
+        # 获取 Game_x64h 进程ID
+        result = subprocess.run(
+            ['powershell', '-Command',
+             'Get-Process Game_x64h -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id'],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return False, 'Game_x64h 进程不存在'
+
+        game_pids = result.stdout.strip().split()
+
+        # 检查每个 Game_x64h 是否有 conhost 子进程
+        for game_pid in game_pids:
+            result2 = subprocess.run(
+                ['powershell', '-Command',
+                 f"Get-WmiObject Win32_Process -Filter \"ParentProcessId={game_pid} AND Name='conhost.exe'\" | Select-Object -ExpandProperty ProcessId"],
+                capture_output=True, text=True
+            )
+            if result2.stdout.strip():
+                return True, f'游戏运行中 (PID: {game_pid})'
+
+        return False, 'Game_x64h 存在但无 conhost 子进程（可能未完全启动）'
+
+    except Exception as e:
+        return False, str(e)
+
 # 日志文件路径
 LOG_FILE = os.path.join(os.path.dirname(__file__), '..', '.log', 'lua_player01.log')
 
@@ -62,14 +95,22 @@ GAME_ARGS = [
     '--luaconsole'
 ]
 
-def send_command(cmd, wait_log=False, log_timeout=30):
+def send_command(cmd, wait_log=False, log_timeout=30, check_game=True):
     """发送命令到游戏（带认证）
 
     Args:
         cmd: 要发送的命令
         wait_log: 是否等待日志更新确认执行
         log_timeout: 等待日志更新的超时时间(秒)
+        check_game: 是否先检查游戏运行状态
     """
+    # 先检查游戏是否在运行
+    if check_game:
+        running, msg = is_game_running()
+        if not running:
+            print(f'[错误] 游戏未运行: {msg}')
+            return False
+
     # 记录发送前的日志修改时间
     initial_mtime = get_log_mtime() if wait_log else None
 
@@ -302,6 +343,7 @@ def main():
     if len(sys.argv) < 2:
         print(__doc__)
         print('\n快捷命令:')
+        print('  status           - 检查游戏运行状态')
         print('  launch           - 启动游戏 (通过计划任务，无UAC弹窗)')
         print('  launch2          - 启动游戏 (通过Y3 Helper，会弹UAC)')
         print('  kill             - 强制杀掉游戏进程 (关闭Y3-Console)')
@@ -323,7 +365,13 @@ def main():
 
     cmd = args[0].lower() if args else ''
 
-    if cmd == 'kill':
+    if cmd == 'status':
+        running, msg = is_game_running()
+        if running:
+            print(f'[OK] {msg}')
+        else:
+            print(f'[未运行] {msg}')
+    elif cmd == 'kill':
         kill_game()
     elif cmd == 'frestart':
         force_restart()
