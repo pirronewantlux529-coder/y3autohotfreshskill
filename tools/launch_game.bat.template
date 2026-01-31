@@ -1,5 +1,7 @@
 @echo off
+chcp 65001 >nul
 REM Y3 游戏启动脚本模板
+REM 注意：chcp 65001 用于解决中文路径乱码问题
 REM
 REM 使用方法：
 REM 1. 复制此文件为 launch_game.bat
