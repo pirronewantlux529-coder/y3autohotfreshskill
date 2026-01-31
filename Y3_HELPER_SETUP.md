@@ -167,13 +167,43 @@ end
 
 ---
 
-### 步骤 5：验证安装
+### 步骤 5：设置管理员权限（避免每次启动弹窗）
+
+游戏 exe 需要管理员权限运行。设置自动提权后，启动游戏时不会再弹出确认窗口。
+
+#### 方法 A：Claude 自动设置（推荐）
+
+让 Claude 执行以下 PowerShell 命令：
+
+```powershell
+Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers' -Name '<游戏exe路径>' -Value 'RUNASADMIN' -Type String -Force
+```
+
+例如：
+```powershell
+Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers' -Name 'd:\Y3\y3\games\2.0\game\Engine\Binaries\Win64\Game_x64h.exe' -Value 'RUNASADMIN' -Type String -Force
+```
+
+#### 方法 B：手动设置
+
+1. 找到游戏 exe 文件（通常在 `Y3安装目录\games\2.0\game\Engine\Binaries\Win64\Game_x64h.exe`）
+2. 右键点击 → **属性**
+3. 切换到 **兼容性** 选项卡
+4. 勾选 **以管理员身份运行此程序**
+5. 点击 **确定**
+
+---
+
+### 步骤 6：验证安装
 
 1. **启动编辑器**（Cursor/VSCode）并打开项目
-2. **通过 Y3 Helper 启动游戏**（按 `Ctrl+Shift+P`，输入 `Y3: Launch Game`）
-3. **运行测试命令**：
+2. **启动游戏**：
    ```bash
    cd <项目路径>/tools
+   python game_control.py launch
+   ```
+3. **等待游戏加载完成，运行测试命令**：
+   ```bash
    python game_control.py test
    ```
 4. **检查游戏日志**：
@@ -249,4 +279,6 @@ python tools/install_y3helper_runlua.py
 - [ ] `main.lua` 加载 `debugs.lua`
 - [ ] `debugs.lua` 包含消息处理器代码
 - [ ] 工具脚本已复制到 `tools/` 目录
+- [ ] 游戏 exe 已设置管理员权限（不弹窗）
+- [ ] `python game_control.py launch` 能启动游戏
 - [ ] `python game_control.py test` 测试通过
