@@ -8,16 +8,20 @@ echo.
 :: Get script directory
 set SCRIPT_DIR=%~dp0
 
-:: Check if launch_game.ps1 exists
-if not exist "%SCRIPT_DIR%launch_game.ps1" (
-    echo [ERROR] launch_game.ps1 not found in %SCRIPT_DIR%
-    echo Please ensure all files are properly installed.
+:: Check if launch_game.bat exists
+if not exist "%SCRIPT_DIR%launch_game.bat" (
+    echo [ERROR] launch_game.bat not found in %SCRIPT_DIR%
+    echo.
+    echo Please run first: python generate_launch_bat.py
+    echo This will auto-generate launch_game.bat with correct paths.
     pause
     exit /b 1
 )
 
 :: Create scheduled task for launching game (runs with highest privileges)
-schtasks /create /tn "Y3LaunchGame" /tr "powershell -ExecutionPolicy Bypass -File \"%SCRIPT_DIR%launch_game.ps1\"" /sc once /st 00:00 /f /rl highest
+echo [INFO] Creating scheduled task Y3LaunchGame...
+echo [INFO] Script path: %SCRIPT_DIR%launch_game.bat
+schtasks /create /tn "Y3LaunchGame" /tr "\"%SCRIPT_DIR%launch_game.bat\"" /sc once /st 00:00 /f /rl highest
 
 if %errorlevel% equ 0 (
     echo.

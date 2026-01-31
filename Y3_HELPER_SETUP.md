@@ -187,10 +187,30 @@ end
 
 ### 步骤 6：创建计划任务（推荐，无UAC弹窗）
 
-以管理员权限运行以下脚本创建计划任务：
+#### 6.1 生成启动脚本
+
+先运行自动生成脚本，它会读取项目配置并生成 `launch_game.bat`：
 
 ```bash
 cd <项目路径>/tools
+python generate_launch_bat.py
+```
+
+**预期输出**：
+```
+[OK] launch_game.bat 已生成！
+  路径: ...\tools\launch_game.bat
+  游戏目录: d:\Y3\y3\games\2.0\game\Engine\Binaries\Win64
+  项目路径: d:\Y3\你的项目路径
+  关卡 ID: xxx-xxx-xxx
+```
+
+#### 6.2 创建计划任务
+
+以管理员权限运行以下脚本：
+
+```bash
+# 右键点击 → "以管理员身份运行"
 
 # 1. 创建启动游戏的计划任务
 setup_launch_task.bat
@@ -199,13 +219,13 @@ setup_launch_task.bat
 setup_kill_task.bat
 ```
 
-**创建后的效果：**
-- `setup_launch_task.bat` → 创建 `Y3LaunchGame` 任务 → `launch` 命令无UAC弹窗启动游戏
-- `setup_kill_task.bat` → 创建 `Y3KillGame` 任务 → `kill`/`frestart` 命令无UAC弹窗杀进程
+**创建后的效果**：
+- `Y3LaunchGame` 任务 → `python game_control.py launch` 无UAC弹窗启动游戏
+- `Y3KillGame` 任务 → `python game_control.py kill` 无UAC弹窗杀进程
 
 **不创建计划任务也能使用**，但每次会弹出UAC确认框。
 
-> ⚠️ **必须以管理员身份运行**：右键点击 bat 文件 → "以管理员身份运行"
+> ⚠️ **必须以管理员身份运行 bat 文件**：右键点击 → "以管理员身份运行"
 
 ### 步骤 7：重启编辑器
 
@@ -245,6 +265,7 @@ tail "$TEMP/y3helper_messages.jsonl"
 <项目路径>/tools/
 ├── game_control.py              # 游戏控制主脚本
 ├── config.py                    # 配置自动检测（无需手动配置）
+├── generate_launch_bat.py       # 自动生成 launch_game.bat
 ├── file_listener.py             # 消息文件监听器
 ├── error_sender.lua             # 游戏端错误发送模块
 ├── patch_y3helper_http.py       # 补丁1：print消息转发
@@ -252,7 +273,6 @@ tail "$TEMP/y3helper_messages.jsonl"
 ├── install_y3helper_runlua.py   # runLua命令安装
 ├── setup_launch_task.bat        # 创建启动游戏计划任务
 ├── setup_kill_task.bat          # 创建杀进程计划任务
-├── launch_game.ps1              # 游戏启动脚本（计划任务调用）
 ├── kill_game.ps1                # 杀进程脚本（计划任务调用）
 ├── quick_enter.lua              # 快速进入游戏
 ├── restart_game.lua             # 重启游戏
