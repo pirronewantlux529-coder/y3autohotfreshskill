@@ -18,16 +18,59 @@ Claude 在开始安装前需要向用户确认以下信息：
 ### 问题 2：项目路径
 ```
 请确认你的 Y3 项目脚本目录路径（包含 main.lua 的目录）：
-默认: D:\Y3\ORPG项目总包\ORPG\maps\EntryMap\script
+示例: D:\Y3\你的项目\maps\地图名\script
 
-请输入路径或按回车使用默认值：
+请输入你的项目脚本路径：
 ```
 
 ---
 
 ## 📋 安装步骤
 
-### 步骤 1：检查 Y3 Helper 插件
+### 步骤 0：复制 tools 目录到项目（重要！）
+
+将仓库中的 `tools` 目录复制到你的项目 `script` 目录下：
+
+```bash
+# 假设你已克隆仓库到 .claude/skills/y3-game-test
+cd <你的项目>/maps/<地图名>/script
+cp -r .claude/skills/y3-game-test/tools ./tools
+```
+
+或手动复制：将 `y3-game-test/tools/` 文件夹整个复制到 `<项目>/maps/<地图>/script/tools/`
+
+> ⚠️ **必须先完成这一步，后续步骤都依赖 tools 目录中的脚本！**
+
+### 步骤 1：验证配置检测
+
+运行配置检测脚本，确认路径都能正确识别：
+
+```bash
+cd <项目路径>/script/tools
+python config.py
+```
+
+**预期输出**（所有项目应显示 [OK]）：
+```
+==================================================
+Y3 游戏控制工具 - 自动检测配置
+==================================================
+
+[OK] 脚本路径: D:\...\script
+[OK] 项目路径: D:\...\项目名
+[OK] 关卡 ID: xxx-xxx-xxx
+[OK] 编辑器路径: d:\Y3\y3\games\2.0\game\Editor.exe
+[OK] 游戏可执行文件: d:\Y3\y3\games\2.0\game\Engine\Binaries\Win64\Game_x64h.exe
+
+[OK] 所有配置检测成功!
+```
+
+**如果显示 [!!] 错误**：
+- `脚本路径` 错误 → 确认 tools 目录在正确位置（`<项目>/maps/<地图>/script/tools/`）
+- `编辑器路径` 错误 → 在 VSCode/Cursor 中打开项目，Y3 Helper 会自动写入配置
+- `关卡 ID` 错误 → 确认项目根目录有 `header.project` 文件
+
+### 步骤 2：检查 Y3 Helper 插件
 
 Claude 执行：
 ```python
@@ -55,7 +98,7 @@ else:
 4. 重启编辑器后再次运行安装
 ```
 
-### 步骤 2：创建项目 CLAUDE.md（重要！）
+### 步骤 3：创建项目 CLAUDE.md（重要！）
 
 检查 script 目录下是否存在 `CLAUDE.md`。
 
@@ -116,7 +159,7 @@ else:
 - 确保每次调用都有据可查
 - 新手上手更快更准确
 
-### 步骤 3：安装 Y3 Helper 补丁（错误捕获）
+### 步骤 4：安装 Y3 Helper 补丁（错误捕获）
 
 Y3 Helper 需要打两个补丁来捕获所有错误：
 
@@ -149,7 +192,7 @@ Y3 Helper 调试异常捕获补丁
 [提示] 请重启 Cursor/VSCode 使补丁生效
 ```
 
-### 步骤 4：修改 Y3 Helper 插件（添加 runLua 命令）
+### 步骤 5：修改 Y3 Helper 插件（添加 runLua 命令）
 
 Claude 执行 `tools/install_y3helper_runlua.py`：
 
@@ -166,7 +209,7 @@ python install_y3helper_runlua.py
 请重启 VSCode/Cursor 使修改生效
 ```
 
-### 步骤 5：配置游戏端代码
+### 步骤 6：配置游戏端代码
 
 Claude 检查 `base/debugs.lua` 是否包含 Y3 Helper 消息处理器：
 
@@ -185,7 +228,7 @@ if y3.develop and y3.develop.helper then
 end
 ```
 
-### 步骤 6：创建计划任务（推荐，无UAC弹窗）
+### 步骤 7：创建计划任务（推荐，无UAC弹窗）
 
 #### 6.1 生成启动脚本
 
@@ -227,34 +270,38 @@ setup_kill_task.bat
 
 > ⚠️ **必须以管理员身份运行 bat 文件**：右键点击 → "以管理员身份运行"
 
-### 步骤 7：重启编辑器
+### 步骤 8：重启编辑器
 
 **必须完全关闭 Cursor/VSCode（包括所有进程），然后重新打开项目。**
 
-### 步骤 8：验证安装
+### 步骤 9：验证安装
 
 ```bash
-cd <项目路径>/tools
+cd <项目路径>/script/tools
 
-# 1. 启动游戏
+# 1. 验证配置
+python game_control.py config
+
+# 2. 启动监听器（新开一个终端窗口）
+python file_listener.py
+
+# 3. 启动游戏（在原终端）
 python game_control.py launch
 
-# 2. 等待加载
-sleep 15
+# 4. 等待加载（约15-30秒）
 
-# 3. 检查状态
+# 5. 检查状态
 python game_control.py status
-# 应显示: [OK] 游戏运行中 (PID: xxx)
+# 应显示: [游戏] 运行中 - 游戏运行中 (PID: xxx)
 
-# 4. 进入游戏
+# 6. 进入游戏
 python game_control.py enter
 
-# 5. 测试错误捕获
-python game_control.py lua "print('[test] Hello!')"
+# 7. 等待进入（约8秒）
 
-# 6. 检查消息文件
-tail "$TEMP/y3helper_messages.jsonl"
-# 应看到 [test] Hello! 消息
+# 8. 测试错误捕获
+python game_control.py lua "print('[test] Hello!')"
+# 监听器窗口应显示 [test] Hello! 消息
 ```
 
 ---
