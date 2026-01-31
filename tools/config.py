@@ -8,11 +8,65 @@
 2. header.project 中的 entry_map.id -> level_id
 3. 从 tools 目录位置推断 script 和 project 路径
 
-无需手动配置！
+如果自动检测失败，支持用户提供路径进行模糊搜索。
 """
 
 import os
 import json
+import glob
+
+
+# 配置文件路径（保存用户手动指定的路径）
+CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.user_config.json')
+
+
+def find_script_dirs(search_path, max_depth=5):
+    """在指定路径下搜索包含 main.lua 的 script 目录
+
+    Args:
+        search_path: 搜索起始路径
+        max_depth: 最大搜索深度
+
+    Returns:
+        list: 找到的 script 目录列表
+    """
+    results = []
+    search_path = os.path.abspath(search_path)
+
+    # 使用 glob 模式搜索
+    for depth in range(1, max_depth + 1):
+        pattern = os.path.join(search_path, *(['*'] * depth), 'main.lua')
+        for main_lua in glob.glob(pattern):
+            script_dir = os.path.dirname(main_lua)
+            # 验证是否是有效的 Y3 项目结构
+            if 'maps' in script_dir and script_dir.endswith('script'):
+                results.append(script_dir)
+
+    return list(set(results))  # 去重
+
+
+def save_user_config(script_path):
+    """保存用户配置"""
+    try:
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump({'script_path': script_path}, f, ensure_ascii=False, indent=2)
+        return True
+    except:
+        return False
+
+
+def load_user_config():
+    """加载用户配置"""
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                script_path = data.get('script_path')
+                if script_path and os.path.exists(os.path.join(script_path, 'main.lua')):
+                    return script_path
+        except:
+            pass
+    return None
 
 
 def detect_script_path():
@@ -90,8 +144,11 @@ def get_game_exe_from_editor(editor_path):
     return None
 
 
-def auto_detect_config():
+def auto_detect_config(script_path_override=None):
     """自动检测所有配置
+
+    Args:
+        script_path_override: 手动指定的 script 路径（覆盖自动检测）
 
     Returns:
         dict: 配置字典
@@ -105,23 +162,16 @@ def auto_detect_config():
         'errors': [],
     }
 
-    # 1. 检测 script 路径
-    script_path = detect_script_path()
+    # 1. 检测 script 路径（优先级：参数 > 自动检测 > 用户配置）
+    script_path = script_path_override or detect_script_path() or load_user_config()
+
     if not script_path:
-        config['errors'].append('无法检测 script 路径（找不到 main.lua）')
+        config['errors'].append('无法检测 script 路径')
         config['errors'].append('')
-        config['errors'].append('tools 目录必须位于: <项目>/maps/<地图>/script/tools/')
-        config['errors'].append('正确结构:')
-        config['errors'].append('  你的项目/')
-        config['errors'].append('    maps/')
-        config['errors'].append('      地图名/')
-        config['errors'].append('        script/')
-        config['errors'].append('          main.lua    <-- 必须存在')
-        config['errors'].append('          tools/      <-- 你应该在这里')
-        config['errors'].append('            config.py')
-        config['errors'].append('')
-        config['errors'].append('请将整个 tools 文件夹复制到正确位置后重试')
+        config['errors'].append('请运行: python config.py --search <你的Y3项目目录>')
+        config['errors'].append('例如: python config.py --search D:\\Y3')
         return config
+
     config['script_path'] = script_path
 
     # 2. 推断项目路径
@@ -178,12 +228,13 @@ def get_game_args(config, debug=False):
     ]
 
 
-def print_config():
+def print_config(config=None):
     """打印当前配置"""
-    config = auto_detect_config()
+    if config is None:
+        config = auto_detect_config()
 
     print('=' * 50)
-    print('Y3 游戏控制工具 - 自动检测配置')
+    print('Y3 游戏控制工具 - 配置检测')
     print('=' * 50)
     print()
 
@@ -203,7 +254,10 @@ def print_config():
         print()
         print('[警告] 问题:')
         for err in config['errors']:
-            print(f'  - {err}')
+            if err:
+                print(f'  - {err}')
+            else:
+                print()
     else:
         print()
         print('[OK] 所有配置检测成功!')
@@ -211,5 +265,109 @@ def print_config():
     return config
 
 
+def search_and_select(search_path):
+    """搜索项目并让用户选择"""
+    print(f'正在搜索: {search_path}')
+    print('请稍候...')
+    print()
+
+    results = find_script_dirs(search_path)
+
+    if not results:
+        print('[!!] 未找到任何 Y3 项目')
+        print()
+        print('确保搜索路径下有 Y3 项目，结构如:')
+        print('  <项目>/maps/<地图>/script/main.lua')
+        return None
+
+    print(f'找到 {len(results)} 个项目:')
+    print()
+
+    for i, path in enumerate(results, 1):
+        # 提取项目名和地图名
+        parts = path.split(os.sep)
+        try:
+            maps_idx = parts.index('maps')
+            project_name = parts[maps_idx - 1] if maps_idx > 0 else '?'
+            map_name = parts[maps_idx + 1] if maps_idx + 1 < len(parts) else '?'
+            print(f'  [{i}] {project_name} / {map_name}')
+            print(f'      {path}')
+        except:
+            print(f'  [{i}] {path}')
+        print()
+
+    if len(results) == 1:
+        choice = 1
+        print(f'只有一个项目，自动选择 [{choice}]')
+    else:
+        try:
+            choice = int(input('请选择项目编号 (输入数字): '))
+        except (ValueError, EOFError):
+            print('取消选择')
+            return None
+
+    if 1 <= choice <= len(results):
+        selected = results[choice - 1]
+        print()
+        print(f'已选择: {selected}')
+
+        # 保存配置
+        if save_user_config(selected):
+            print('[OK] 配置已保存，下次自动使用此路径')
+
+        return selected
+    else:
+        print('无效选择')
+        return None
+
+
+def main():
+    """主函数"""
+    import sys
+
+    # 处理命令行参数
+    if len(sys.argv) > 1:
+        if sys.argv[1] == '--search' and len(sys.argv) > 2:
+            # 搜索模式
+            search_path = sys.argv[2]
+            if not os.path.exists(search_path):
+                print(f'[!!] 路径不存在: {search_path}')
+                return
+
+            selected = search_and_select(search_path)
+            if selected:
+                print()
+                print('=' * 50)
+                config = auto_detect_config(selected)
+                print_config(config)
+
+        elif sys.argv[1] == '--clear':
+            # 清除保存的配置
+            if os.path.exists(CONFIG_FILE):
+                os.remove(CONFIG_FILE)
+                print('[OK] 已清除保存的配置')
+            else:
+                print('没有保存的配置')
+
+        elif sys.argv[1] == '--help':
+            print('Y3 游戏配置检测工具')
+            print()
+            print('用法:')
+            print('  python config.py              # 自动检测配置')
+            print('  python config.py --search <路径>  # 搜索指定目录下的Y3项目')
+            print('  python config.py --clear      # 清除保存的配置')
+            print()
+            print('示例:')
+            print('  python config.py --search D:\\Y3')
+            print('  python config.py --search C:\\Users\\你的用户名\\Documents')
+
+        else:
+            print(f'未知参数: {sys.argv[1]}')
+            print('使用 --help 查看帮助')
+    else:
+        # 默认：自动检测
+        print_config()
+
+
 if __name__ == '__main__':
-    print_config()
+    main()

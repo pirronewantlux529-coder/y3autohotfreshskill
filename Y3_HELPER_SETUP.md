@@ -90,9 +90,28 @@ Y3 游戏控制工具 - 自动检测配置
 ```
 
 **如果显示 [!!] 错误**：
+
+**方法 1：使用搜索功能（推荐）**
+
+如果 tools 没有放在正确位置，可以用搜索功能自动找到你的项目：
+
+```bash
+python config.py --search D:\Y3
+# 或搜索你存放 Y3 项目的目录
+python config.py --search C:\Users\你的用户名\Documents
+```
+
+程序会列出找到的所有 Y3 项目，选择一个后会自动保存配置。
+
+**方法 2：手动排查**
 - `脚本路径` 错误 → 确认 tools 目录在正确位置（`<项目>/maps/<地图>/script/tools/`）
 - `编辑器路径` 错误 → 在 VSCode/Cursor 中打开项目，Y3 Helper 会自动写入配置
 - `关卡 ID` 错误 → 确认项目根目录有 `header.project` 文件
+
+**清除保存的配置**：
+```bash
+python config.py --clear
+```
 
 ### 步骤 2：检查 Y3 Helper 插件
 
