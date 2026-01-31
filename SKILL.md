@@ -24,14 +24,19 @@ python file_listener.py &
 # 第2步：启动游戏
 python game_control.py launch
 
-# 第3步：等待加载（约15秒）
-sleep 15
+# 第3步：等待加载（约30秒）
+sleep 30
 
 # 第4步：进入游戏
 python game_control.py enter
+
+# 第5步：验证是否进入成功（看监听器是否有打印输出）
+python game_control.py lua "print('[test] 游戏已就绪')"
 ```
 
 > ⚠️ **不开监听器 = 看不到错误！** 监听器会实时显示游戏端的 print/log 和引擎异常。
+>
+> 💡 **判断是否进入游戏**：发送 lua 命令，如果监听器显示打印内容则说明已进入。
 
 ## 功能速查
 
