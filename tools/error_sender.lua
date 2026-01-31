@@ -4,7 +4,7 @@
 -- 此模块会 hook 日志系统，将错误消息发送到 Python 监听器
 
 local network = require 'y3.util.network'
-local json = require 'y3.json'
+-- y3.json 是挂在全局 y3 对象上的，不需要单独 require
 
 local M = {}
 
@@ -30,7 +30,7 @@ local function sendMessage(data)
         return false
     end
 
-    local jsonStr = json.encode(data)
+    local jsonStr = y3.json.encode(data)
     local packet = string.pack('>s4', jsonStr)
 
     local ok, err = pcall(function()
