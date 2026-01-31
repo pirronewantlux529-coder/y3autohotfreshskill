@@ -55,7 +55,68 @@ else:
 4. 重启编辑器后再次运行安装
 ```
 
-### 步骤 2：安装 Y3 Helper 补丁（错误捕获）
+### 步骤 2：创建项目 CLAUDE.md（重要！）
+
+检查 script 目录下是否存在 `CLAUDE.md`。
+
+**如果已存在，跳过此步骤。**
+
+如果不存在则需要创建：
+
+**Claude 执行：**
+
+1. 扫描 script 目录结构，了解项目架构
+2. 创建 `CLAUDE.md` 文件，包含以下核心内容：
+
+```markdown
+# Y3 项目开发指南 - Claude 专用
+
+## 🔥 核心原则（必读！）
+
+### API 验证铁律
+
+**⚠️ 禁止凭想象编写 API！任何不确定的 API 都必须先搜索验证！**
+
+1. **每个函数都要搜索验证**
+   ```bash
+   rg "function_name" --type lua
+   rg ":method_name" --type lua
+   ```
+
+2. **找不到定义 = 不能使用**
+   - 在 y3/ 框架中找到定义
+   - 或在现有代码中找到正确用法
+   - 确认参数顺序和调用方式
+
+3. **常见错误示例**
+   ```lua
+   -- ❌ 错误：凭想象使用
+   player:create_unit(...)
+
+   -- ✅ 正确：搜索后发现真实API
+   y3.unit.create_unit(player, ...)
+   ```
+
+## 📁 目录结构
+
+- `y3/` - Y3框架（只读，不可修改）
+- `base/` - 基础库（可修改）
+- `mapwork/` - 地图逻辑（可修改）
+- `tables/` - 配置数据（只读，自动生成）
+
+## 🔧 开发规范
+
+1. 所有变量使用 `local` 声明
+2. 修改前先搜索现有实现
+3. 优先复用现有代码，避免重复造轮子
+```
+
+**为什么需要这个文件：**
+- 防止 Claude 凭想象编写不存在的 API
+- 确保每次调用都有据可查
+- 新手上手更快更准确
+
+### 步骤 3：安装 Y3 Helper 补丁（错误捕获）
 
 Y3 Helper 需要打两个补丁来捕获所有错误：
 
@@ -88,7 +149,7 @@ Y3 Helper 调试异常捕获补丁
 [提示] 请重启 Cursor/VSCode 使补丁生效
 ```
 
-### 步骤 3：修改 Y3 Helper 插件（添加 runLua 命令）
+### 步骤 4：修改 Y3 Helper 插件（添加 runLua 命令）
 
 Claude 执行 `tools/install_y3helper_runlua.py`：
 
@@ -105,7 +166,7 @@ python install_y3helper_runlua.py
 请重启 VSCode/Cursor 使修改生效
 ```
 
-### 步骤 4：配置游戏端代码
+### 步骤 5：配置游戏端代码
 
 Claude 检查 `base/debugs.lua` 是否包含 Y3 Helper 消息处理器：
 
@@ -124,7 +185,7 @@ if y3.develop and y3.develop.helper then
 end
 ```
 
-### 步骤 5：创建计划任务（可选，用于强制杀进程）
+### 步骤 6：创建计划任务（可选，用于强制杀进程）
 
 以管理员权限运行：
 
@@ -135,11 +196,11 @@ setup_kill_task.bat
 
 这会创建计划任务，允许无 UAC 弹窗杀掉游戏进程。
 
-### 步骤 6：重启编辑器
+### 步骤 7：重启编辑器
 
 **必须完全关闭 Cursor/VSCode（包括所有进程），然后重新打开项目。**
 
-### 步骤 7：验证安装
+### 步骤 8：验证安装
 
 ```bash
 cd <项目路径>/tools
