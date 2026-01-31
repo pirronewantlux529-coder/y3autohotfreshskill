@@ -101,9 +101,29 @@ def send_y3helper(command, args=None):
         return False
 
 def launch_game():
-    """通过 Y3 Helper 启动游戏"""
+    """通过计划任务启动游戏（无UAC弹窗）"""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ['schtasks', '/run', '/tn', 'Y3LaunchGame'],
+            capture_output=True, text=True, shell=True
+        )
+        if result.returncode == 0:
+            print('[OK] 游戏启动命令已发送（通过计划任务，无UAC弹窗）')
+            return True
+        else:
+            print(f'[错误] 计划任务执行失败: {result.stderr}')
+            print('[提示] 请先按照 Y3_HELPER_SETUP.md 步骤5 创建计划任务')
+            print('[提示] 或使用 launch2 通过 Y3 Helper 启动（会弹UAC）')
+            return False
+    except Exception as e:
+        print(f'[错误] {e}')
+        return False
+
+def launch_game_y3helper():
+    """通过 Y3 Helper 启动游戏（备用方式，会弹UAC）"""
     if send_y3helper('y3-helper.launchGame'):
-        print('[OK] 游戏启动命令已发送')
+        print('[OK] 游戏启动命令已发送（通过Y3 Helper）')
         return True
     return False
 
@@ -167,7 +187,8 @@ def main():
     if len(sys.argv) < 2:
         print(__doc__)
         print('\n可用命令:')
-        print('  launch           - 启动游戏（通过 Y3 Helper）')
+        print('  launch           - 启动游戏（通过计划任务，无UAC弹窗）')
+        print('  launch2          - 启动游戏（通过Y3 Helper，会弹UAC）')
         print('  reload [module]  - 热更新模块 (默认 base.hotfresh)')
         print('  restart          - 重启游戏')
         print('  enter            - 快速进入游戏')
@@ -184,8 +205,10 @@ def main():
 
     cmd = args[0].lower() if args else ''
 
-    if cmd == 'launch' or cmd == 'start':
+    if cmd == 'launch':
         launch_game()
+    elif cmd == 'launch2' or cmd == 'start':
+        launch_game_y3helper()
     elif cmd == 'reload':
         module = args[1] if len(args) > 1 else 'base.hotfresh'
         reload_lua(module)

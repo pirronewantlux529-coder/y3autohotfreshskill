@@ -1,0 +1,16 @@
+@echo off
+REM Y3 游戏启动脚本模板
+REM
+REM 使用方法：
+REM 1. 复制此文件为 launch_game.bat
+REM 2. 修改下面的路径为你的实际路径
+REM 3. 按照 Y3_HELPER_SETUP.md 创建计划任务
+
+REM ========== 修改以下路径 ==========
+set Y3_DIR=d:\Y3\y3
+set PROJECT_PATH=d:\Y3\ORPG项目总包\ORPG
+set LEVEL_ID=615ac83d-ae12-11ef-b9b9-9d56ad7167b1
+REM ==================================
+
+cd /d "%Y3_DIR%\games\2.0\game\Engine\Binaries\Win64"
+start "" "Game_x64h.exe" --dx11 --start=Python "--python-args=type@editor_game,subtype@editor_game,editor_map_path@%PROJECT_PATH%,level_id@%LEVEL_ID%,release@true,lua_dummy@space,lua_wait_debugger@true" --plugin-config=Plugins-PyQt --console --luaconsole

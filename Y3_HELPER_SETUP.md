@@ -167,30 +167,50 @@ end
 
 ---
 
-### 步骤 5：设置管理员权限（避免每次启动弹窗）
+### 步骤 5：创建计划任务（实现无UAC弹窗启动）⚠️ 重要
 
-游戏 exe 需要管理员权限运行。设置自动提权后，启动游戏时不会再弹出确认窗口。
+游戏 exe 需要管理员权限运行。通过计划任务可以实现**完全无弹窗**启动。
 
-#### 方法 A：Claude 自动设置（推荐）
+#### 5.1 创建启动脚本
 
-让 Claude 执行以下 PowerShell 命令：
+在项目 `tools/` 目录创建 `launch_game.bat`：
 
-```powershell
-Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers' -Name '<游戏exe路径>' -Value 'RUNASADMIN' -Type String -Force
+```batch
+@echo off
+cd /d "<Y3安装目录>\games\2.0\game\Engine\Binaries\Win64"
+start "" "Game_x64h.exe" --dx11 --start=Python "--python-args=type@editor_game,subtype@editor_game,editor_map_path@<项目路径>,level_id@<关卡ID>,release@true,lua_dummy@space,lua_wait_debugger@true" --plugin-config=Plugins-PyQt --console --luaconsole
 ```
 
-例如：
+**注意**：需要替换：
+- `<Y3安装目录>` - Y3 编辑器安装路径
+- `<项目路径>` - 你的 ORPG 项目路径
+- `<关卡ID>` - 你的关卡 ID
+
+#### 5.2 创建计划任务
+
+让 Claude 执行以下命令（会弹出一次管理员确认）：
+
 ```powershell
-Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers' -Name 'd:\Y3\y3\games\2.0\game\Engine\Binaries\Win64\Game_x64h.exe' -Value 'RUNASADMIN' -Type String -Force
+Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', 'schtasks /create /tn Y3LaunchGame /tr "<项目路径>\tools\launch_game.bat" /sc once /st 00:00 /rl highest /f & pause' -Verb RunAs -Wait
 ```
 
-#### 方法 B：手动设置
+或者手动创建：
+1. 按 `Win+R`，输入 `taskschd.msc` 打开任务计划程序
+2. 点击右侧 **创建任务**
+3. 常规选项卡：
+   - 名称填 `Y3LaunchGame`
+   - 勾选 **使用最高权限运行**
+4. 操作选项卡 → 新建：
+   - 程序填 `launch_game.bat` 的完整路径
+5. 确定保存
 
-1. 找到游戏 exe 文件（通常在 `Y3安装目录\games\2.0\game\Engine\Binaries\Win64\Game_x64h.exe`）
-2. 右键点击 → **属性**
-3. 切换到 **兼容性** 选项卡
-4. 勾选 **以管理员身份运行此程序**
-5. 点击 **确定**
+#### 5.3 验证计划任务
+
+```bash
+python game_control.py launch
+```
+
+如果游戏启动且**没有弹出UAC窗口**，说明配置成功！
 
 ---
 
