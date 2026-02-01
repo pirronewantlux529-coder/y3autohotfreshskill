@@ -58,7 +58,6 @@ python game_control.py lua "print('[test] 游戏已就绪')"
 | 功能 | game_control.py 命令 |
 |------|---------------------|
 | 启动游戏 | `python game_control.py launch` |
-| 热更新 | `python game_control.py reload` |
 | 执行 Lua 脚本 | `python game_control.py run <脚本>` |
 | 执行 Lua 代码 | `python game_control.py lua "代码"` |
 | 执行 Lua（无确认） | `python game_control.py lua-nc "代码"` |
@@ -144,12 +143,11 @@ python game_control.py c
 # 2. 修复代码中的问题
 # ...编辑代码...
 
-# 3. 热更新修复后的模块
-python game_control.py reload module_name
-
-# 4. 再次测试
+# 3. 再次测试
 python game_control.py run test_script
 ```
+
+> 注意：`reload` 命令（热更新 base.hotfresh）已移除，因为大部分需要热更新的场景（UI、初始化代码）都不生效，直接用 `frestart` 重启更可靠。
 
 **优势**：不需要重启游戏，保持游戏状态，调试效率最高！
 
@@ -312,3 +310,4 @@ send_y3helper('y3-helper.runLua', ["_reloadlua('tools.my_test')"])
 | `Y3_HELPER_SETUP.md` | 安装配置指南 |
 | `tools/game_control.py` | 游戏控制脚本 |
 | `tools/file_listener.py` | 消息文件监听器 |
+| `tools/error_sender.lua` | 游戏端错误发送模块 |
