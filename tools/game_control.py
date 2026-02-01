@@ -401,6 +401,8 @@ def send_y3helper(command, args=None, wait_response=False, timeout=10):
         sock.send(struct.pack('>I', len(data)) + data)
 
         if not wait_response:
+            # 给游戏一点时间处理命令
+            time.sleep(0.3)
             sock.close()
             return True
 
@@ -703,6 +705,7 @@ def main():
         run_lua_file(args[1], wait_log=wait_log)
     elif cmd == 'lua' or cmd == 'luac' or cmd == 'lua-confirm':
         # lua 命令默认带确认（需要 runlua_confirm 补丁）
+        # args[0] 是 'lua'，args[1:] 是代码
         if len(args) < 2:
             print('[错误] 请指定要执行的 Lua 代码')
             return
