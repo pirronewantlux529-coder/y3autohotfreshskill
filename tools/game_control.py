@@ -701,14 +701,8 @@ def main():
             print('[错误] 请指定要执行的脚本名')
             return
         run_lua_file(args[1], wait_log=wait_log)
-    elif cmd == 'lua':
-        if len(args) < 2:
-            print('[错误] 请指定要执行的 Lua 代码')
-            return
-        code = ' '.join(args[1:])
-        run_lua_code(code, wait_log=wait_log)
-    elif cmd == 'luac' or cmd == 'lua-confirm':
-        # 带确认的 Lua 执行（需要 runlua_confirm 补丁）
+    elif cmd == 'lua' or cmd == 'luac' or cmd == 'lua-confirm':
+        # lua 命令默认带确认（需要 runlua_confirm 补丁）
         if len(args) < 2:
             print('[错误] 请指定要执行的 Lua 代码')
             return
@@ -723,6 +717,13 @@ def main():
             print(f'[失败] {result["error"]}')
             if not result['executed']:
                 print('[提示] 游戏可能卡死，尝试: python game_control.py kill')
+    elif cmd == 'lua-nc' or cmd == 'lua-noconfirm':
+        # 无确认的 Lua 执行（旧模式，不等待响应）
+        if len(args) < 2:
+            print('[错误] 请指定要执行的 Lua 代码')
+            return
+        code = ' '.join(args[1:])
+        run_lua_code(code, wait_log=wait_log)
     elif cmd == 'continue' or cmd == 'c':
         debug_continue()
     elif cmd == 'pause' or cmd == 'p':

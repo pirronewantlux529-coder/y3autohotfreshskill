@@ -61,30 +61,30 @@ python game_control.py lua "print('[test] 游戏已就绪')"
 | 热更新 | `python game_control.py reload` |
 | 执行 Lua 脚本 | `python game_control.py run <脚本>` |
 | 执行 Lua 代码 | `python game_control.py lua "代码"` |
-| **执行 Lua（带确认）** | `python game_control.py luac "代码"` |
+| 执行 Lua（无确认） | `python game_control.py lua-nc "代码"` |
 | 快速进入 | `python game_control.py enter` |
 | 检查状态 | `python game_control.py status` |
 | 强制杀游戏 | `python game_control.py kill` |
 | 强制重启 | `python game_control.py frestart` |
 
-### ⭐ luac 命令确认机制（推荐）
+### ⭐ lua 命令默认带确认
 
-`luac` 命令会等待游戏端确认执行，解决了"命令发送成功但游戏卡死"的问题：
+`lua` 命令现在默认等待游戏端确认执行，解决了"命令发送成功但游戏卡死"的问题：
 
 ```bash
-# 普通执行（无确认，可能游戏卡死也不知道）
+# 执行 Lua 代码（默认带确认，5秒超时）
 python game_control.py lua "print('test')"
-
-# 带确认执行（等待游戏响应，5秒超时）
-python game_control.py luac "print('test')"
 # 输出: [成功] 游戏已执行命令
 # 或:   [失败] 未收到响应（可能游戏卡死）
+
+# 无确认模式（旧行为，不等待响应）
+python game_control.py lua-nc "print('test')"
 ```
 
-**适用场景**：
-- 需要确认命令是否真正执行
-- 调试时判断游戏是否卡死
-- 自动化测试脚本中需要可靠反馈
+**确认机制优势**：
+- 明确知道命令是否真正执行
+- 游戏卡死时立即得到反馈
+- 自动化测试更可靠
 
 ### 调试控制命令
 

@@ -110,13 +110,13 @@ python game_control.py kill
 # 强制重启（杀进程 → 启动 → 进入游戏）
 python game_control.py frestart
 
-# 执行 Lua 代码
+# 执行 Lua 代码（默认带确认）
 python game_control.py lua "print('Hello!')"
-
-# 执行 Lua 代码（带确认，推荐！）
-python game_control.py luac "print('Hello!')"
 # 输出: [成功] 游戏已执行命令
 # 或:   [失败] 未收到响应（游戏可能卡死）
+
+# 执行 Lua 代码（无确认，旧模式）
+python game_control.py lua-nc "print('Hello!')"
 
 # 执行测试脚本
 python game_control.py run debug_template
