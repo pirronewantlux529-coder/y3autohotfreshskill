@@ -242,6 +242,72 @@ def run_lua_code(code, wait_log=True, safe_mode=True):
     result = send_command(f"热更新('{lua_path}')", wait_log=wait_log)
     return result
 
+
+def run_lua_with_confirm(code, timeout=10):
+    """执行 Lua 代码并等待确认（需要 runlua_confirm 补丁）
+
+    Args:
+        code: Lua 代码
+        timeout: 超时时间（秒）
+
+    Returns:
+        dict: {
+            'success': bool,      # 是否成功
+            'executed': bool,     # 游戏是否真正执行了
+            'result': any,        # 执行结果
+            'error': str          # 错误信息
+        }
+    """
+    result = {
+        'success': False,
+        'executed': False,
+        'result': None,
+        'error': None
+    }
+
+    # 检查游戏是否运行
+    running, msg = is_game_running()
+    if not running:
+        result['error'] = f'游戏未运行: {msg}'
+        return result
+
+    # 发送命令并等待响应
+    response = send_y3helper('y3-helper.runLua', [code], wait_response=True, timeout=timeout)
+
+    if response is None:
+        result['error'] = '未收到响应（可能游戏卡死或未打补丁）'
+        return result
+
+    if isinstance(response, dict):
+        # 检查响应结构
+        if 'result' in response:
+            # 标准 JSON-RPC 结果格式
+            results = response.get('result', [])
+            if results and len(results) > 0:
+                first = results[0]
+                result['executed'] = True
+                result['success'] = first.get('success', False)
+                result['result'] = first.get('result')
+                if not result['success']:
+                    result['error'] = first.get('error', '未知错误')
+            else:
+                result['error'] = '响应结果为空'
+        elif 'method' in response:
+            # 游戏端回显消息格式：{'method': 'command', 'params': {...}}
+            # 收到这个说明游戏端处理了命令（即使没有返回结果）
+            result['executed'] = True
+            result['success'] = True
+            result['result'] = response.get('params', {}).get('data', '')
+        elif 'error' in response:
+            result['error'] = response['error']
+        else:
+            result['error'] = f'未知响应格式: {response}'
+    else:
+        result['error'] = f'响应类型错误: {type(response)}'
+
+    return result
+
+
 def restart():
     """重启游戏（通过热更新restart_game.lua）"""
     return run_lua_file('restart_game')
@@ -303,16 +369,27 @@ def read_helper_port():
         pass
     return None
 
-def send_y3helper(command, args=None):
-    """发送命令到 Y3 Helper"""
+def send_y3helper(command, args=None, wait_response=False, timeout=10):
+    """发送命令到 Y3 Helper
+
+    Args:
+        command: 命令名称
+        args: 命令参数
+        wait_response: 是否等待响应（需要打过 runlua_confirm 补丁）
+        timeout: 超时时间（秒）
+
+    Returns:
+        bool 或 dict: 如果 wait_response=False 返回 bool
+                      如果 wait_response=True 返回响应字典或 None
+    """
     port = read_helper_port()
     if not port:
         print('[错误] 找不到 Y3 Helper 端口，请确认 Cursor/VSCode 已打开项目')
-        return False
+        return False if not wait_response else None
 
     try:
         sock = socket.socket()
-        sock.settimeout(5)
+        sock.settimeout(timeout)
         sock.connect(('127.0.0.1', port))
 
         msg = {
@@ -322,14 +399,56 @@ def send_y3helper(command, args=None):
         }
         data = json.dumps(msg).encode('utf-8')
         sock.send(struct.pack('>I', len(data)) + data)
-        sock.close()
-        return True
+
+        if not wait_response:
+            sock.close()
+            return True
+
+        # 等待响应
+        try:
+            # 读取长度头（4字节）
+            header = b''
+            while len(header) < 4:
+                chunk = sock.recv(4 - len(header))
+                if not chunk:
+                    break
+                header += chunk
+
+            if len(header) < 4:
+                print('[警告] 未收到完整响应头')
+                sock.close()
+                return None
+
+            length = struct.unpack('>I', header)[0]
+
+            # 读取响应体
+            body = b''
+            while len(body) < length:
+                chunk = sock.recv(min(4096, length - len(body)))
+                if not chunk:
+                    break
+                body += chunk
+
+            sock.close()
+
+            if len(body) < length:
+                print('[警告] 响应数据不完整')
+                return None
+
+            response = json.loads(body.decode('utf-8'))
+            return response
+
+        except socket.timeout:
+            print('[超时] 等待 Y3 Helper 响应超时')
+            sock.close()
+            return None
+
     except ConnectionRefusedError:
         print('[错误] Y3 Helper 连接被拒绝，请确认 Cursor/VSCode 已打开项目')
-        return False
+        return False if not wait_response else None
     except Exception as e:
         print(f'[错误] {e}')
-        return False
+        return False if not wait_response else None
 
 def kill_game():
     """强制杀掉游戏进程（通过计划任务，有管理员权限）"""
@@ -541,6 +660,7 @@ def main():
         print('  goto             - 传送到演武场（战斗测试区域）')
         print('  run <script>     - 执行 tools/ 下的 lua 脚本')
         print('  lua "代码"       - 执行任意 Lua 代码')
+        print('  luac "代码"      - 执行 Lua 并等待确认（需要 runlua_confirm 补丁）')
         print('\n选项:')
         print('  --no-wait        - 不等待日志更新确认')
         return
@@ -587,6 +707,22 @@ def main():
             return
         code = ' '.join(args[1:])
         run_lua_code(code, wait_log=wait_log)
+    elif cmd == 'luac' or cmd == 'lua-confirm':
+        # 带确认的 Lua 执行（需要 runlua_confirm 补丁）
+        if len(args) < 2:
+            print('[错误] 请指定要执行的 Lua 代码')
+            return
+        code = ' '.join(args[1:])
+        print(f'[发送] {code[:50]}...' if len(code) > 50 else f'[发送] {code}')
+        result = run_lua_with_confirm(code)
+        if result['success']:
+            print(f'[成功] 游戏已执行命令')
+            if result['result']:
+                print(f'[返回] {result["result"]}')
+        else:
+            print(f'[失败] {result["error"]}')
+            if not result['executed']:
+                print('[提示] 游戏可能卡死，尝试: python game_control.py kill')
     elif cmd == 'continue' or cmd == 'c':
         debug_continue()
     elif cmd == 'pause' or cmd == 'p':

@@ -113,6 +113,11 @@ python game_control.py frestart
 # 执行 Lua 代码
 python game_control.py lua "print('Hello!')"
 
+# 执行 Lua 代码（带确认，推荐！）
+python game_control.py luac "print('Hello!')"
+# 输出: [成功] 游戏已执行命令
+# 或:   [失败] 未收到响应（游戏可能卡死）
+
 # 执行测试脚本
 python game_control.py run debug_template
 
