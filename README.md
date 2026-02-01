@@ -124,11 +124,9 @@ python game_control.py run debug_template
 # 简单打印测试
 python game_control.py test
 
-# 启动错误监听器（新窗口）
-python game_control.py listen
-
-# 在游戏中启用错误发送
-python game_control.py errors
+# 启动消息监听器（在新终端窗口运行）
+python file_listener.py
+# 监听 Y3 Helper 的消息文件，显示游戏端的 print 输出和异常
 ```
 
 > **首次使用前必须创建计划任务**（以管理员身份运行）：
