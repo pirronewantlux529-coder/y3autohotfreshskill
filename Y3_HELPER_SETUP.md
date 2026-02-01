@@ -357,7 +357,6 @@ python game_control.py lua "print('[test] Hello!')"
 ├── config.py                    # 配置自动检测（无需手动配置）
 ├── generate_launch_bat.py       # 自动生成 launch_game.bat
 ├── file_listener.py             # 消息文件监听器
-├── error_sender.lua             # 游戏端错误发送模块
 ├── patch_y3helper_http.py       # 补丁1：print消息转发
 ├── patch_debugger_exception.py  # 补丁2：异常捕获
 ├── install_y3helper_runlua.py   # runLua命令安装

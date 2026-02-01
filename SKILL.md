@@ -312,4 +312,3 @@ send_y3helper('y3-helper.runLua', ["_reloadlua('tools.my_test')"])
 | `Y3_HELPER_SETUP.md` | 安装配置指南 |
 | `tools/game_control.py` | 游戏控制脚本 |
 | `tools/file_listener.py` | 消息文件监听器 |
-| `tools/error_sender.lua` | 游戏端错误发送模块 |

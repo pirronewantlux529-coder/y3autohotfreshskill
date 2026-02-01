@@ -40,8 +40,5 @@ if y3.develop and y3.develop.helper then
     end)
 end
 
--- 自动加载错误发送器（发送错误到外部监听器）
--- 需要先启动 python error_listener.py
-pcall(function()
-    require 'tools.error_sender'
-end)
+-- 错误捕获已改用 Y3 Helper 补丁方案（patch_y3helper_http.py）
+-- 不再需要 error_sender，用 file_listener.py 监听消息文件即可
