@@ -42,3 +42,11 @@ end
 
 -- 错误捕获已改用 Y3 Helper 补丁方案（patch_y3helper_http.py）
 -- 不再需要 error_sender，用 file_listener.py 监听消息文件即可
+
+-- Y3 Helper 就绪标记（game_control.py 等待此标记后才执行命令）
+-- 使用游戏初始化事件 + 1秒延迟，确保所有系统加载完毕
+y3.game:event('游戏-初始化', function()
+    y3.ltimer.wait(1, function()
+        print('[Y3_HELPER_READY]')
+    end)
+end)
