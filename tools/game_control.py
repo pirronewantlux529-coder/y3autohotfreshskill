@@ -81,8 +81,6 @@ def wait_for_log_update(timeout=30, initial_mtime=None):
             return True
         time.sleep(0.5)
     return False
-PORT = 65432
-TIMEOUT = 5
 
 # 导入配置模块（自动检测路径）
 try:
@@ -107,80 +105,12 @@ except ImportError:
     def get_game_args(config, debug=False):
         return []
 
-def send_command(cmd, wait_log=False, log_timeout=30, check_game=True):
-    """发送命令到游戏（带认证）
-
-    Args:
-        cmd: 要发送的命令
-        wait_log: 是否等待日志更新确认执行
-        log_timeout: 等待日志更新的超时时间(秒)
-        check_game: 是否先检查游戏运行状态
-    """
-    # 先检查游戏是否在运行
-    if check_game:
-        running, msg = is_game_running()
-        if not running:
-            print(f'[错误] 游戏未运行: {msg}')
-            return False
-
-    # 记录发送前的日志修改时间
-    initial_mtime = get_log_mtime() if wait_log else None
-
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(TIMEOUT)
-        s.connect((HOST, PORT))
-
-        # 先发送认证信息
-        auth = 'version=GM'.encode('utf-8')
-        s.send(auth)
-        time.sleep(0.3)  # 等待认证处理完成
-
-        # 发送实际命令
-        data = cmd.encode('utf-8')
-        s.send(data)
-        print(f'[OK] 已发送: {cmd}')
-
-        # 保持连接一段时间确保消息被转发
-        time.sleep(0.5)
-
-        # 尝试接收响应
-        try:
-            s.settimeout(2)
-            response = s.recv(1024).decode('utf-8', errors='ignore')
-            if response:
-                print(f'[响应] {response.strip()}')
-        except socket.timeout:
-            pass
-
-        s.close()
-
-        # 等待日志更新确认命令已执行
-        if wait_log:
-            print(f'[等待] 等待游戏执行...')
-            if wait_for_log_update(log_timeout, initial_mtime):
-                print(f'[OK] 命令已执行（日志已更新）')
-            else:
-                print(f'[警告] 等待超时，命令可能未执行')
-                return False
-
-        return True
-    except ConnectionRefusedError:
-        print('[错误] 连接被拒绝 - 请确认游戏已启动且本地服务端已开启')
-        return False
-    except socket.timeout:
-        print('[错误] 连接超时')
-        return False
-    except Exception as e:
-        print(f'[错误] {e}')
-        return False
-
 def reload(module='base.hotfresh'):
-    """热更新模块"""
-    return send_command(f"热更新('{module}')")
+    """热更新模块（通过Y3 Helper）"""
+    return run_lua_with_confirm(f"_reloadlua('{module}')")
 
 def run_lua_file(filename, wait_log=True):
-    """执行tools目录下的lua脚本（通过热更新命令）
+    """执行tools目录下的lua脚本（通过Y3 Helper热更新）
 
     Args:
         filename: 脚本名（不含.lua后缀）
@@ -190,7 +120,8 @@ def run_lua_file(filename, wait_log=True):
     lua_path = f"tools.{filename}"
     if lua_path.endswith('.lua'):
         lua_path = lua_path[:-4]
-    return send_command(f"热更新('{lua_path}')", wait_log=wait_log)
+    # 通过 Y3 Helper 执行热更新
+    return run_lua_with_confirm(f"_reloadlua('{lua_path}')")
 
 def run_lua_code(code, wait_log=True, safe_mode=True):
     """执行任意Lua代码（创建临时文件后热更新）
@@ -237,10 +168,9 @@ def run_lua_code(code, wait_log=True, safe_mode=True):
             f.write(code)
             f.write('\n')
 
-    # 通过热更新执行（不立即删除文件，让游戏有时间读取）
+    # 通过 Y3 Helper 热更新执行
     lua_path = f'tools.temp.{temp_name}'
-    result = send_command(f"热更新('{lua_path}')", wait_log=wait_log)
-    return result
+    return run_lua_with_confirm(f"_reloadlua('{lua_path}')")
 
 
 def run_lua_with_confirm(code, timeout=10):
@@ -747,9 +677,10 @@ def main():
             code = 'dbg(); ' + ' '.join(args[1:])
             run_lua_code(code, wait_log=False, safe_mode=False)
     else:
-        # 直接发送原始命令
+        # 未知命令，尝试作为 lua 代码执行
         raw_cmd = ' '.join(args)
-        send_command(raw_cmd, wait_log=wait_log)
+        print(f'[未知命令] 尝试作为 Lua 代码执行: {raw_cmd}')
+        run_lua_with_confirm(raw_cmd)
 
 if __name__ == '__main__':
     main()
