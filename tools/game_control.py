@@ -140,19 +140,20 @@ def reload(module='base.hotfresh'):
     """热更新模块（通过Y3 Helper）"""
     return run_lua_with_confirm(f"_reloadlua('{module}')")
 
-def run_lua_file(filename, wait_log=True):
+def run_lua_file(filename, wait_log=True, skip_ready_check=False):
     """执行tools目录下的lua脚本（通过Y3 Helper热更新）
 
     Args:
         filename: 脚本名（不含.lua后缀）
         wait_log: 是否等待日志更新确认执行
+        skip_ready_check: 是否跳过就绪检查
     """
     # 构造模块路径（不带.lua后缀）
     lua_path = f"tools.{filename}"
     if lua_path.endswith('.lua'):
         lua_path = lua_path[:-4]
     # 通过 Y3 Helper 执行热更新
-    return run_lua_with_confirm(f"_reloadlua('{lua_path}')")
+    return run_lua_with_confirm(f"_reloadlua('{lua_path}')", skip_ready_check=skip_ready_check)
 
 def run_lua_code(code, wait_log=True, safe_mode=True):
     """执行任意Lua代码（创建临时文件后热更新）
@@ -204,12 +205,13 @@ def run_lua_code(code, wait_log=True, safe_mode=True):
     return run_lua_with_confirm(f"_reloadlua('{lua_path}')")
 
 
-def run_lua_with_confirm(code, timeout=10):
+def run_lua_with_confirm(code, timeout=10, skip_ready_check=False):
     """执行 Lua 代码并等待确认（需要 runlua_confirm 补丁）
 
     Args:
         code: Lua 代码
         timeout: 超时时间（秒）
+        skip_ready_check: 是否跳过就绪检查（用于 restart 等特殊命令）
 
     Returns:
         dict: {
@@ -232,8 +234,8 @@ def run_lua_with_confirm(code, timeout=10):
         result['error'] = f'游戏未运行: {msg}'
         return result
 
-    # 检查游戏是否已完成初始化
-    if not is_y3_helper_ready():
+    # 检查游戏是否已完成初始化（除非跳过检查）
+    if not skip_ready_check and not is_y3_helper_ready():
         print('[等待] 游戏尚未初始化完成，等待中...')
         if not wait_for_y3_helper_ready(timeout=60):
             result['error'] = '游戏初始化超时，请检查游戏状态'
@@ -278,7 +280,8 @@ def run_lua_with_confirm(code, timeout=10):
 
 def restart():
     """重启游戏（通过热更新restart_game.lua）"""
-    return run_lua_file('restart_game')
+    # restart 跳过 ready 检查，因为重启后会重新加载 debugs.lua
+    return run_lua_file('restart_game', skip_ready_check=True)
 
 def quick_enter():
     """快速进入游戏"""
