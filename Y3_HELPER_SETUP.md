@@ -254,7 +254,9 @@ python install_y3helper_runlua.py
 
 ### 步骤 6：配置游戏端代码
 
-Claude 检查 `base/debugs.lua` 是否包含 Y3 Helper 消息处理器：
+Claude 检查 `base/debugs.lua` 是否包含以下代码：
+
+#### 6.1 Y3 Helper 消息处理器
 
 ```lua
 -- 需要确保以下代码存在于 base/debugs.lua
@@ -270,6 +272,25 @@ if y3.develop and y3.develop.helper then
     end)
 end
 ```
+
+#### 6.2 就绪标记（重要！）
+
+**必须添加此代码**，确保 `game_control.py` 在游戏完全加载后才执行命令：
+
+```lua
+-- Y3 Helper 就绪标记（game_control.py 等待此标记后才执行命令）
+-- 使用游戏初始化事件 + 1秒延迟，确保所有系统加载完毕
+y3.game:event('游戏-初始化', function()
+    y3.ltimer.wait(1, function()
+        print('[Y3_HELPER_READY]')
+    end)
+end)
+```
+
+**为什么需要这个标记**：
+- 游戏启动后需要时间加载各种系统（UI、网络、存档等）
+- 如果在加载完成前执行命令，可能导致命令失败或行为异常
+- `game_control.py` 会检测日志中的 `[Y3_HELPER_READY]` 标记，只有看到这个标记才会执行命令
 
 ### 步骤 7：创建计划任务（推荐，无UAC弹窗）
 

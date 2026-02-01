@@ -82,6 +82,37 @@ def wait_for_log_update(timeout=30, initial_mtime=None):
         time.sleep(0.5)
     return False
 
+# Y3 Helper 就绪标记
+Y3_HELPER_READY_MARK = '[Y3_HELPER_READY]'
+
+def is_y3_helper_ready():
+    """检查游戏是否已完成初始化（日志中有就绪标记）"""
+    try:
+        with open(LOG_FILE, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+            return Y3_HELPER_READY_MARK in content
+    except:
+        return False
+
+def wait_for_y3_helper_ready(timeout=60):
+    """等待游戏完成初始化
+
+    Args:
+        timeout: 超时时间（秒）
+
+    Returns:
+        bool: 是否就绪
+    """
+    print(f'[等待] 等待游戏初始化完成...')
+    start = time.time()
+    while time.time() - start < timeout:
+        if is_y3_helper_ready():
+            print(f'[就绪] 游戏已初始化完成')
+            return True
+        time.sleep(0.5)
+    print(f'[超时] 等待游戏初始化超时（{timeout}秒）')
+    return False
+
 # 导入配置模块（自动检测路径）
 try:
     from config import get_config, get_game_args
@@ -200,6 +231,13 @@ def run_lua_with_confirm(code, timeout=10):
     if not running:
         result['error'] = f'游戏未运行: {msg}'
         return result
+
+    # 检查游戏是否已完成初始化
+    if not is_y3_helper_ready():
+        print('[等待] 游戏尚未初始化完成，等待中...')
+        if not wait_for_y3_helper_ready(timeout=60):
+            result['error'] = '游戏初始化超时，请检查游戏状态'
+            return result
 
     # 发送命令并等待响应
     response = send_y3helper('y3-helper.runLua', [code], wait_response=True, timeout=timeout)
