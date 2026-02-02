@@ -49,7 +49,18 @@ git clone https://github.com/pirronewantlux529-coder/y3autohotfreshskill.git y3-
 cp -r y3-game-test/tools ../../tools
 ```
 
-3. **让 Claude Code 完成配置：**
+3. **配置 memory 记忆文件（重要！）：**
+
+```bash
+cd y3-game-test/memory
+```
+
+> ⚠️ **memory/ 目录内的文件是示例，必须根据你的项目路径修改！**
+>
+> 打开 `memory/main.md` 等文件，将里面的路径改成你的实际项目路径。
+> 这些记忆文件帮助 Claude 记住测试经验和避坑指南。
+
+4. **让 Claude Code 完成配置：**
 
 直接告诉 Claude Code：
 
@@ -154,6 +165,12 @@ y3-game-test/
 ├── SKILL.md                    # Skill 使用说明（Claude 读取）
 ├── Y3_HELPER_SETUP.md          # 安装配置指南（Claude 自动安装用）
 ├── README.md                   # 本文件
+├── memory/                     # ⚠️ 记忆文件（需根据项目路径修改！）
+│   ├── main.md                 # 主要测试经验（必读）
+│   ├── skill-test.md           # 技能测试经验
+│   ├── ui-test.md              # UI 测试经验
+│   ├── equip-test.md           # 装备测试经验
+│   └── README.md               # 记忆系统说明
 ├── tools/
 │   ├── game_control.py         # 游戏控制脚本
 │   ├── install_y3helper_runlua.py  # 插件安装脚本

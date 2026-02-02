@@ -444,6 +444,30 @@ python game_control.py frestart
 
 ---
 
+### 步骤 10：配置 Memory 记忆文件（重要！）
+
+**⚠️ memory/ 目录内的文件是示例模板，必须根据你的实际项目路径修改！**
+
+```bash
+cd <skill目录>/memory
+```
+
+需要修改的文件：
+- `memory/main.md` - 主要测试经验和项目路径
+- `memory/skill-test.md` - 技能测试相关路径
+- `memory/ui-test.md` - UI 测试相关路径
+- `memory/equip-test.md` - 装备测试相关路径
+
+**修改方法**：
+1. 打开每个 `.md` 文件
+2. 将示例中的项目路径替换为你的实际路径
+3. 根据你的项目结构调整目录说明
+
+> 这些记忆文件帮助 Claude 积累测试经验、记住避坑指南。
+> 如果不配置，Claude 仍可使用，但无法利用历史经验。
+
+---
+
 ## ✅ 安装完成确认清单
 
 Claude 在安装完成后确认：
@@ -457,3 +481,4 @@ Claude 在安装完成后确认：
 - [ ] 游戏能通过 `game_control.py launch` 启动
 - [ ] 消息能正确写入 `%TEMP%\y3helper_messages.jsonl`
 - [ ] 异常能被捕获到消息文件
+- [ ] memory/ 目录已根据项目路径修改（可选但推荐）
