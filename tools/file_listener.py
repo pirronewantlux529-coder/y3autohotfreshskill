@@ -53,33 +53,54 @@ def tail_file():
     last_size = 0
     last_lines = 0
 
+    error_count = 0  # 连续错误计数
+    max_errors = 10  # 最大连续错误次数
+
     while True:
         try:
             if os.path.exists(MSG_FILE):
-                with open(MSG_FILE, 'r', encoding='utf-8', errors='ignore') as f:
-                    lines = f.readlines()
+                try:
+                    with open(MSG_FILE, 'r', encoding='utf-8', errors='ignore') as f:
+                        lines = f.readlines()
+                except (PermissionError, IOError) as e:
+                    # 文件访问错误，等待后重试
+                    error_count += 1
+                    if error_count >= max_errors:
+                        print(f'[严重错误] 连续 {max_errors} 次无法读取文件，退出')
+                        break
+                    time.sleep(1)
+                    continue
+
+                # 成功读取，重置错误计数
+                error_count = 0
 
                 # 只处理新行
                 if len(lines) > last_lines:
                     for line in lines[last_lines:]:
-                        line = line.strip()
-                        if not line:
-                            continue
-
                         try:
-                            data = json.loads(line)
-                            level = data.get('level', 'info')
-                            message = data.get('message', '')
-                            timestamp = data.get('timestamp', '')
-
-                            # 过滤无用消息：nil返回值、心跳
-                            if message == 'nil' or message.startswith('[HEARTBEAT]'):
+                            line = line.strip()
+                            if not line:
                                 continue
 
-                            color = get_color(level)
-                            print(f'{color}[{timestamp}][{level}] {message}{Colors.RESET}')
-                        except json.JSONDecodeError:
-                            print(f'[RAW] {line}')
+                            try:
+                                data = json.loads(line)
+                                level = data.get('level', 'info')
+                                message = data.get('message', '')
+                                timestamp = data.get('timestamp', '')
+
+                                # 过滤无用消息：nil返回值、心跳
+                                if message == 'nil' or message.startswith('[HEARTBEAT]'):
+                                    continue
+
+                                color = get_color(level)
+                                print(f'{color}[{timestamp}][{level}] {message}{Colors.RESET}')
+                            except json.JSONDecodeError:
+                                # JSON 解析失败，原样输出
+                                print(f'[RAW] {line}')
+                        except Exception as e:
+                            # 单行处理出错，不影响后续行
+                            print(f'[行处理错误] {e}')
+                            continue
 
                     last_lines = len(lines)
 
