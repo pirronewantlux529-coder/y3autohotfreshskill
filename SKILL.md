@@ -351,18 +351,6 @@ cat ../.log/monitor_errors.log   # 查看监控日志
 grep "\[error\]" ../.log/lua_player01.log  # 查看游戏错误
 ```
 
-### 为什么不用 file_listener？
-
-| 场景 | file_listener | heartbeat_monitor |
-|------|:---:|:---:|
-| 游戏正常运行时的日志 | ✅ 实时显示 | ✅ 检测新错误 |
-| Lua xpcall 捕获的错误 | ✅ 显示 | ✅ 检测 |
-| 引擎断点冻结（nil访问等） | ❌ **无法检测** | ✅ **心跳超时检测** |
-| 自动恢复（continue） | ❌ 不支持 | ✅ 自动发送 |
-| 错误详情（恢复后） | ❌ 不知道 | ✅ 检查异常+日志 |
-
-> **结论**：长时间无人值守运行时，必须使用 `heartbeat_monitor.py`。`file_listener.py` 适合交互式调试时查看实时输出。
-
 ## 核心 API
 
 ```python
