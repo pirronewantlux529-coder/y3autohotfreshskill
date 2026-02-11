@@ -287,6 +287,82 @@ print('字段A:', save.fieldA)
 
 **经验法则**：改了 `uimods/`、`mapwork/ui/` → 直接重启游戏
 
+## 💓 心跳监控器（长时间运行必备）
+
+### 核心原理
+
+游戏卡在调试器断点时，**所有日志停止写入**，file_listener 无法检测。唯一可靠的检测方式是**心跳**：定期发送 Lua 命令，超时则判定游戏冻结。
+
+### 启动心跳监控
+
+```bash
+cd <项目路径>/tools
+
+# 后台启动心跳监控器（默认每10秒检测，5秒超时）
+python heartbeat_monitor.py &
+
+# 自定义间隔
+python heartbeat_monitor.py --interval 5 &
+```
+
+### 心跳监控器功能
+
+1. **冻结检测**：定期发送 `print('[HEARTBEAT]')` 到游戏，超时 = 冻结
+2. **自动恢复**：检测到冻结后自动发送 `continue` 命令解除断点
+3. **错误捕获**：恢复后自动检查 `y3helper_messages.jsonl` 中的异常和 `.log/lua_player01.log` 中的 `[error]`
+4. **持续监控**：即使游戏正常运行，也会监控新增的日志错误和异常
+5. **统计报告**：退出时输出心跳成功率、冻结次数、恢复次数等统计
+
+### 单次检测模式
+
+```bash
+# 检测一次并输出 JSON 结果（用于外部脚本集成）
+python heartbeat_monitor.py --once
+# 输出: {"alive": true, "recovered": false, "errors": []}
+# 退出码: 0=存活, 1=不存活
+```
+
+### 监控日志
+
+所有监控事件记录在 `.log/monitor_errors.log`，包含：
+- 心跳超时警告
+- 冻结检测和恢复过程
+- 捕获的异常和错误详情
+
+### 🚨 长时间运行（过夜）标准流程
+
+```bash
+cd <项目路径>/tools
+
+# 1. 启动游戏
+python game_control.py launch
+sleep 20
+python game_control.py enter
+sleep 8
+
+# 2. 启动心跳监控器（必须！）
+python heartbeat_monitor.py --interval 10 &
+
+# 3. 启动业务逻辑
+python game_control.py lua "print('[test] ready')"
+
+# 4. 第二天检查：
+cat ../.log/monitor_errors.log   # 查看监控日志
+grep "\[error\]" ../.log/lua_player01.log  # 查看游戏错误
+```
+
+### 为什么不用 file_listener？
+
+| 场景 | file_listener | heartbeat_monitor |
+|------|:---:|:---:|
+| 游戏正常运行时的日志 | ✅ 实时显示 | ✅ 检测新错误 |
+| Lua xpcall 捕获的错误 | ✅ 显示 | ✅ 检测 |
+| 引擎断点冻结（nil访问等） | ❌ **无法检测** | ✅ **心跳超时检测** |
+| 自动恢复（continue） | ❌ 不支持 | ✅ 自动发送 |
+| 错误详情（恢复后） | ❌ 不知道 | ✅ 检查异常+日志 |
+
+> **结论**：长时间无人值守运行时，必须使用 `heartbeat_monitor.py`。`file_listener.py` 适合交互式调试时查看实时输出。
+
 ## 核心 API
 
 ```python
@@ -334,5 +410,6 @@ send_y3helper('y3-helper.runLua', ["_reloadlua('tools.my_test')"])
 |------|------|
 | `Y3_HELPER_SETUP.md` | 安装配置指南 |
 | `tools/game_control.py` | 游戏控制脚本 |
-| `tools/file_listener.py` | 消息文件监听器 |
+| `tools/heartbeat_monitor.py` | 心跳监控器（冻结检测+自动恢复） |
+| `tools/file_listener.py` | 消息文件监听器（实时日志查看） |
 | `tools/error_sender.lua` | 游戏端错误发送模块 |
