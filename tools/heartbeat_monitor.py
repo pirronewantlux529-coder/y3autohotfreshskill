@@ -54,10 +54,12 @@ def log(msg, level='INFO'):
     ts = datetime.now().strftime('%H:%M:%S')
     line = f'[{ts}][{level}] {msg}'
     print(line)
+    sys.stdout.flush()  # 立即刷新输出
     try:
         os.makedirs(os.path.dirname(MONITOR_LOG), exist_ok=True)
         with open(MONITOR_LOG, 'a', encoding='utf-8') as f:
             f.write(line + '\n')
+            f.flush()  # 立即写入磁盘
     except:
         pass
 

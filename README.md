@@ -22,8 +22,10 @@ Y3（英雄三国，KK对战平台游戏）游戏热更新与测试调试工具�
 - 🚀 **启动/关闭/重启/暂停游戏** - 通过计划任务启动，无UAC弹窗
 - 🔄 **热更新** - 实时更新 Lua 代码无需重启，随时修改代码并应用
 - 📝 **执行 Lua** - 远程执行任意 Lua 代码，支持自动打断点分析
-- 🔧 **调试工具** - 内置调试脚本模板
+- ✅ **自动错误检测** - `lua_executor.py` 发送代码后自动检查日志错误和异常
+- 🔧 **调试工具** - 内置调试脚本模板和测试示例
 - 🔍 **异常捕获** - 自动捕获引擎级异常，写入消息文件供监听
+- 💓 **心跳监控** - 长时间运行时自动检测卡死并恢复
 
 ## 💡 使用建议
 
@@ -114,63 +116,83 @@ python game_control.py config
 
 ## 使用
 
-### 命令行
+### 命令行（基础）
 
 ```bash
 # 启动游戏（无UAC弹窗）
 python game_control.py launch
 
-# 启动游戏（通过Y3 Helper，会弹UAC）
-python game_control.py launch2
-
-# 热更新
-python game_control.py reload
-
 # 快速进入游戏
 python game_control.py enter
 
-# 重启游戏（游戏内切换关卡，卡死时无效）
-python game_control.py restart
-
-# 强制杀游戏进程（只杀游戏，不杀编辑器）
+# 强制杀游戏进程
 python game_control.py kill
 
 # 强制重启（杀进程 → 启动 → 进入游戏）
 python game_control.py frestart
+```
 
-# 执行 Lua 代码（默认带确认）
+### 推荐用法：lua_executor（自动检测错误）
+
+```bash
+# 执行Lua代码（自动检测错误）
+python lua_executor.py "print('test')"
+
+# 执行测试脚本（自动检测错误）
+python lua_executor.py --file pet_test
+```
+
+**Python脚本中使用**：
+```python
+from lua_executor import execute_lua, print_result
+
+result = execute_lua("your_code")
+print_result(result)
+
+if not result.success:
+    print('失败:', result.error)
+    exit(1)
+```
+
+### 旧方式：game_control.py
+
+```bash
+# 执行 Lua 代码（带确认，但不自动检查错误）
 python game_control.py lua "print('Hello!')"
-# 输出: [成功] 游戏已执行命令
-# 或:   [失败] 未收到响应（游戏可能卡死）
-
-# 执行 Lua 代码（无确认，旧模式）
-python game_control.py lua-nc "print('Hello!')"
 
 # 执行测试脚本
 python game_control.py run debug_template
-
-# 简单打印测试
-python game_control.py test
-
-# 启动消息监听器（在新终端窗口运行）
-python file_listener.py
-
-# 或一键启动所有监控器（推荐）
-python start_all_monitors.py
 ```
 
-**监控系统说明：**
+### 监控系统
 
-| 监控器 | 功能 | 何时使用 |
-|-------|------|---------|
-| `file_listener.py` | 监听 Y3 Helper 消息文件，捕获引擎级异常 | 交互式调试 |
-| `log_listener.py` | 监听游戏日志文件，显示 Lua 层输出 | 查看 print 输出 |
-| `heartbeat_monitor.py` | 心跳检测，自动 continue 恢复 | **长时间运行必备** |
-| `start_all_monitors.py` | 一键启动所有监控器 | 便捷启动 |
+**短期测试（推荐）**：
+```bash
+# 使用 lua_executor，每次执行自动检测错误
+python lua_executor.py "your_code"
+```
 
-**自动恢复机制：**
-- 游戏触发错误进入断点 → 心跳监控器检测超时 → 自动发送 `continue` → 游戏恢复 → 继续捕获错误
-- 监控器在后台持续运行，即使对话停止也能记录错误
+**长时间运行（如压力测试）**：
+```bash
+# 启动游戏
+python game_control.py launch && sleep 20
+python lua_executor.py --file quick_enter && sleep 8
+
+# 启动心跳监控器（前台实时显示）
+python heartbeat_monitor.py --interval 10
+
+# 或后台运行
+python heartbeat_monitor.py --interval 10 > monitor.log 2>&1 &
+tail -f monitor.log
+```
+
+**监控器功能对比**：
+
+| 工具 | 用途 | 使用场景 |
+|------|------|---------|
+| `lua_executor.py` | 执行Lua并自动检测错误 | 日常开发测试 |
+| `heartbeat_monitor.py` | 心跳检测，自动恢复卡死 | 长时间无人值守运行 |
+| `file_listener.py` | 实时显示游戏消息 | 查看实时输出（可选） |
 
 > **首次使用前必须创建计划任务**（以管理员身份运行）：
 > - `setup_launch_task.bat` - 创建启动游戏任务（无UAC弹窗启动）
@@ -195,25 +217,25 @@ Claude 会自动调用相关命令。
 ```
 y3-game-test/
 ├── SKILL.md                    # Skill 使用说明（Claude 读取）
-├── Y3_HELPER_SETUP.md          # 安装配置指南（Claude 自动安装用）
+├── README_NEW_WORKFLOW.md      # v3.0 新工作流程详解
+├── RELEASE_NOTES.md            # 版本更新说明
+├── Y3_HELPER_SETUP.md          # 安装配置指南
 ├── README.md                   # 本文件
 ├── memory/                     # ⚠️ 记忆文件（需根据项目路径修改！）
 │   ├── main.md                 # 主要测试经验（必读）
-│   ├── skill-test.md           # 技能测试经验
-│   ├── ui-test.md              # UI 测试经验
-│   ├── equip-test.md           # 装备测试经验
-│   └── README.md               # 记忆系统说明
-├── tools/
+│   └── ...                     # 其他记忆文件
+├── tools/                      # 核心工具集
+│   ├── lua_executor.py         # ⭐ 自动错误检测执行器（v3.0新增）
+│   ├── test_with_executor.py   # ⭐ 使用示例和测试模板（v3.0新增）
+│   ├── heartbeat_monitor.py    # ⭐ 心跳监控器（v3.0优化）
 │   ├── game_control.py         # 游戏控制脚本
+│   ├── file_listener.py        # 消息文件监听器
 │   ├── install_y3helper_runlua.py  # 插件安装脚本
-│   ├── launch_game.bat.template    # 启动脚本模板
 │   ├── quick_enter.lua         # 快速进入游戏
-│   ├── restart_game.lua        # 重启游戏
-│   └── debug_template.lua      # 调试模板
+│   └── restart_game.lua        # 重启游戏
 └── examples/
     ├── debugs_y3helper_patch.lua   # debugs.lua 补丁
-    ├── y3helper_client.py          # Python 客户端库
-    └── example_test.py             # 使用示例
+    └── y3helper_client.py          # Python 客户端库
 ```
 
 ## 前提条件

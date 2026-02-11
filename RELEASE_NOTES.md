@@ -1,64 +1,117 @@
-# y3-game-test v2.0 发布说明
+# y3-game-test v3.0 发布说明
 
-## 🎉 重大更新：完整的监控和自动恢复系统
+## 🎉 重大更新：智能错误检测与自动恢复系统
 
-### ✨ 新功能
+### ✨ 核心新功能
 
-1. **心跳监控器** (`heartbeat_monitor.py`)
-   - 自动检测游戏冻结（断点卡死）
-   - 自动发送 `continue` 命令恢复游戏
-   - 记录所有异常和错误到日志
-   - 支持长时间无人值守运行
+**1. lua_executor.py - 自动错误检测引擎**
+   - 发送Lua代码后**自动检查日志错误和异常**
+   - 返回结构化结果（`ExecuteResult`对象）
+   - 游戏卡死时自动尝试 `continue` 恢复
+   - 清晰的成功/失败反馈，无需手动查日志
 
-2. **游戏日志监听器** (`log_listener.py`)
-   - 直接监听 `.log/lua_player01.log` 文件
-   - 只显示新增内容（避免重复）
-   - 彩色高亮错误行
-   - 不需要任何补丁
+**2. 优化的测试工作流程**
+   - 短期测试 → 用 `lua_executor`（每次命令自动验证）
+   - 长期运行 → 用 `heartbeat_monitor`（持续监控+自动恢复）
+   - 两者互补，彻底解决"发了bug不知道"的问题
 
-3. **一键启动工具** (`start_all_monitors.py`)
-   - 同时启动所有监控器
-   - 在独立窗口运行
-   - 方便管理
+**3. 遵循Claude官方Skill编写规范**
+   - Description用第三人称
+   - 包含具体功能+触发条件
+   - 删除所有"为什么"、"优势"解释
+   - 只保留规则和代码模板
 
-4. **容错测试** (`test_listener_robustness.py`)
-   - 测试监听器的容错能力
-   - 验证各种异常情况处理
+### 📊 问题解决
 
-### 🔧 改进
+**之前的问题**：
+- ❌ 发送Lua代码后不知道是否真正成功
+- ❌ 监听系统和命令流割裂
+- ❌ 错误发现滞后，不知道哪一步出错
 
-- **file_listener.py** 增强容错能力
-- **heartbeat_monitor.py** 优化恢复逻辑
-- README 和 SKILL.md 完善文档
+**现在的解决方案**：
+- ✅ 每次执行立即验证（术后必查CT原则）
+- ✅ 自动化检测，结构化反馈
+- ✅ 实时监控，立即发现问题
 
-### 📊 测试验证
+### 🔧 新增工具
 
-已在实际游戏环境验证：
-- ✅ 触发 nil 错误 → 游戏卡断点
-- ✅ 心跳监控检测到超时
-- ✅ 自动发送 continue 恢复
-- ✅ 成功捕获异常信息
-- ✅ 后台持续运行（6.7小时测试）
+| 工具 | 功能 |
+|------|------|
+| `lua_executor.py` | 自动错误检测的Lua执行器 |
+| `test_with_executor.py` | 使用示例和测试模板 |
+| `heartbeat_monitor.py` | 心跳监控器（增强实时输出） |
+| `README_NEW_WORKFLOW.md` | 完整工作流程说明 |
 
-### 🚀 使用方法
+### 📝 使用示例
 
-```bash
-# 更新到最新版
-cd <项目>/.claude/skills/y3-game-test
-git pull
+**Python脚本（推荐）**：
+```python
+from lua_executor import execute_lua, print_result
 
-# 一键启动所有监控器
-cd tools
-python start_all_monitors.py
+result = execute_lua("your_code")
+print_result(result)
+
+if not result.success:
+    # 有错误，立即处理
+    print('错误:', result.error)
+    if result.log_errors:
+        print('日志错误:', result.log_errors)
+    exit(1)
 ```
 
-### 📝 注意事项
+**命令行**：
+```bash
+# 执行Lua并自动检测错误
+python lua_executor.py "print('test')"
 
-1. 长时间运行必须启动 `heartbeat_monitor.py`
-2. `file_listener.py` 需要先打补丁（`patch_y3helper_http.py`）
-3. `log_listener.py` 不需要补丁，可直接使用
-4. 所有监控器都会在后台持续运行
+# 执行脚本
+python lua_executor.py --file pet_test
+```
+
+### 🚀 升级方法
+
+```bash
+# 1. 备份旧版本（可选）
+mv .claude/skills/y3-game-test .claude/skills/y3-game-test.old
+
+# 2. 克隆新版本
+cd .claude/skills
+git clone <repo_url> y3-game-test
+
+# 3. 测试新工具
+cd y3-game-test/tools
+python test_with_executor.py 1
+```
+
+### 📖 文档更新
+
+- **SKILL.md**: 精简重写，遵循官方规范
+- **README_NEW_WORKFLOW.md**: 完整工作流程和设计哲学
+- **tools/**: 新增3个Python工具
+
+### 💡 核心理念
+
+**Fail Fast** - 发现问题立即停止，不继续执行错误的路径
+**术后必查CT** - 每次操作都立即验证，不拖延
+**实时反馈** - 监控器实时显示，不是事后翻日志
 
 ---
 
-**完整文档**: README.md 和 SKILL.md
+## v2.0 更新记录（历史）
+
+### 心跳监控器系统
+- 自动检测游戏冻结
+- 自动发送 continue 恢复
+- 记录所有异常和错误
+
+### 游戏日志监听器
+- 直接监听日志文件
+- 彩色高亮错误
+- 不需要补丁
+
+---
+
+**完整文档**:
+- [SKILL.md](./SKILL.md) - Skill使用规范
+- [README_NEW_WORKFLOW.md](./README_NEW_WORKFLOW.md) - 工作流程详解
+- [Y3_HELPER_SETUP.md](./Y3_HELPER_SETUP.md) - 环境配置指南
