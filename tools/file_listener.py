@@ -72,6 +72,10 @@ def tail_file():
                             message = data.get('message', '')
                             timestamp = data.get('timestamp', '')
 
+                            # 过滤无用消息：nil返回值、心跳
+                            if message == 'nil' or message.startswith('[HEARTBEAT]'):
+                                continue
+
                             color = get_color(level)
                             print(f'{color}[{timestamp}][{level}] {message}{Colors.RESET}')
                         except json.JSONDecodeError:
