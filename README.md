@@ -154,8 +154,23 @@ python game_control.py test
 
 # 启动消息监听器（在新终端窗口运行）
 python file_listener.py
-# 监听 Y3 Helper 的消息文件，显示游戏端的 print 输出和异常
+
+# 或一键启动所有监控器（推荐）
+python start_all_monitors.py
 ```
+
+**监控系统说明：**
+
+| 监控器 | 功能 | 何时使用 |
+|-------|------|---------|
+| `file_listener.py` | 监听 Y3 Helper 消息文件，捕获引擎级异常 | 交互式调试 |
+| `log_listener.py` | 监听游戏日志文件，显示 Lua 层输出 | 查看 print 输出 |
+| `heartbeat_monitor.py` | 心跳检测，自动 continue 恢复 | **长时间运行必备** |
+| `start_all_monitors.py` | 一键启动所有监控器 | 便捷启动 |
+
+**自动恢复机制：**
+- 游戏触发错误进入断点 → 心跳监控器检测超时 → 自动发送 `continue` → 游戏恢复 → 继续捕获错误
+- 监控器在后台持续运行，即使对话停止也能记录错误
 
 > **首次使用前必须创建计划任务**（以管理员身份运行）：
 > - `setup_launch_task.bat` - 创建启动游戏任务（无UAC弹窗启动）
