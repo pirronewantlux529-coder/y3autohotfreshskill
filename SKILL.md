@@ -2,11 +2,44 @@
 name: y3-game-test
 description: 通过Y3 Helper执行Lua代码并自动检测错误，启动游戏、热更新模块、运行测试脚本。用于测试游戏功能、调试Lua代码、验证代码修改的任务。
 ---
-# Y3游戏测试
+# Y3测试流程
 
-通过Y3 Helper执行Lua并自动检测日志错误和异常。
+Y3 Helper执行Lua代码，自动检测日志错误和异常。
 
 ## 🚨 核心铁律
+
+### 命令中断检测与恢复流程
+
+**发送Lua命令后的检查流程：**
+
+1. **发送命令后等待5-8秒**
+2. **检查心跳包**（查看日志中是否有AutoPlayer状态报告）
+3. **如果心跳停止** → 100%确定命令有错误：
+   ```bash
+   # Step 1: 继续游戏
+   python game_control.py continue
+   sleep 3
+
+   # Step 2: 检查错误（使用 .lua: 而不是 [error]）
+   grep "\.lua:" .log/lua_player01.log | tail -20
+
+   # Step 3: 分析错误，修复代码
+   # Step 4: 重新发送命令
+   ```
+
+4. **如果心跳正常但没输出** → 检查其他问题（文件路径、模块名等）
+
+### 错误检测铁律
+
+**❌ 错误的做法：**
+```bash
+grep "\[error\]" .log/lua_player01.log  # 只能捕获部分错误！
+```
+
+**✅ 正确的做法：**
+```bash
+grep "\.lua:" .log/lua_player01.log | tail -20  # 捕获所有Lua错误（.lua:行号格式）
+```
 
 ### 每次发送Lua必须检查错误！
 
@@ -26,8 +59,9 @@ if not result.success:
 - ❌ 发送代码后不检查就继续
 - ❌ 用 `game_control.py lua` 后不查日志
 - ❌ 假设"没报错=成功"
+- ❌ 只查 `[error]` 而不查 `.lua:`
 
-## 🚀 标准测试流程
+## 标准测试流程
 
 ### Python脚本（推荐）
 
@@ -71,7 +105,84 @@ sleep 8
 python lua_executor.py "print('[test] ready')"
 ```
 
-## 📚 API
+## Orders自动化命令库
+
+### Orders目录结构
+
+```
+tools/orders/
+├── game/          # 游戏操作（进入游戏、传送）
+├── ui/            # UI操作（点击按钮、输入文本）
+├── test/          # 测试辅助（给物品、设等级）
+└── debug/         # 调试工具（打印状态、检查错误）
+```
+
+### 使用Orders
+
+**Python脚本中**：
+```python
+from orders_manager import execute_order, OrderChain
+
+# 执行单个命令
+result = execute_order('game/enter_game')
+
+# 带参数执行
+result = execute_order('test/give_items', item_id=1001, count=10)
+
+# 命令链（多步骤）
+chain = OrderChain()
+chain.add('game/enter_game')
+chain.add('test/give_items', item_id=1001, count=10)
+chain.add('test/set_level', level=30)
+results = chain.execute()
+```
+
+**命令行**：
+```bash
+# 列出所有可用命令
+python orders_manager.py list
+
+# 执行命令
+python orders_manager.py run game/enter_game
+
+# 带参数
+python orders_manager.py run test/give_items --item_id=1001 --count=10
+```
+
+### 常用Orders
+
+| 命令 | 功能 | 参数 |
+|------|------|------|
+| `game/enter_game` | 自动进入游戏 | - |
+| `ui/click_button` | 点击UI按钮 | ui_path, wait_time |
+| `test/give_items` | 给予物品 | item_id, count |
+| `test/set_level` | 设置等级 | level |
+| `debug/print_state` | 打印游戏状态 | - |
+
+### 自定义Order
+
+创建 `orders/custom/my_command.lua`：
+```lua
+--[[
+    命令：我的自定义命令
+    功能：描述
+    参数：param1, param2
+]]
+
+-- 参数
+param1 = param1 or 'default'
+
+print('[Order] 执行自定义命令')
+-- 你的逻辑
+return {success = true}
+```
+
+使用：
+```bash
+python orders_manager.py run custom/my_command --param1=value
+```
+
+## API参考
 
 ### lua_executor 模块
 
@@ -110,7 +221,7 @@ print_result(result, verbose=True)
 | `lua "代码"` | 执行Lua（带确认） |
 | `run 脚本` | 执行tools/下的脚本 |
 
-## 📝 测试代码模板
+## 测试代码模板
 
 ### 单步测试
 
@@ -153,9 +264,9 @@ for i, (desc, code) in enumerate(steps, 1):
     time.sleep(0.5)
 ```
 
-## 💓 心跳监控器
+## 心跳监控器
 
-**长时间运行时使用**（如压力测试、fakeplayer）
+长时间运行时使用（压力测试、fakeplayer）：
 
 ```bash
 # 启动游戏
@@ -176,7 +287,7 @@ tail -f monitor.log
 - 卡死时自动尝试恢复并显示结果
 - 所有事件同时写入 `../.log/monitor_errors.log`
 
-## 🔥 热更新生效条件
+## 热更新生效条件
 
 ### 能生效
 - `tools/` 下的测试脚本
@@ -190,7 +301,7 @@ tail -f monitor.log
 
 **改了 `uimods/`、`mapwork/ui/` → 直接 `frestart` 重启**
 
-## 🚨 异常处理
+## 异常处理
 
 ### 查看异常消息
 
