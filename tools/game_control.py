@@ -113,6 +113,50 @@ def wait_for_y3_helper_ready(timeout=60):
     print(f'[超时] 等待游戏初始化超时（{timeout}秒）')
     return False
 
+def check_heartbeat_in_log(tail_lines=20):
+    """检查日志最后N行是否有心跳包（AutoPlayer状态报告）
+
+    Args:
+        tail_lines: 检查最后N行
+
+    Returns:
+        bool: True表示有心跳（游戏正常），False表示心跳停止（可能卡在断点）
+    """
+    try:
+        with open(LOG_FILE, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+            if len(lines) < tail_lines:
+                recent = ''.join(lines)
+            else:
+                recent = ''.join(lines[-tail_lines:])
+            # 检查是否有AutoPlayer心跳标记
+            return 'AutoPlayer' in recent or '[自动玩家]' in recent
+    except:
+        return True  # 读取失败时假设正常
+
+def extract_lua_errors(tail_lines=20):
+    """提取最近的Lua错误信息（.lua:行号格式）
+
+    Args:
+        tail_lines: 提取最后N行错误
+
+    Returns:
+        str: 错误信息文本
+    """
+    try:
+        # 使用grep提取.lua:格式的错误
+        startupinfo = _get_hidden_startupinfo()
+        result = subprocess.run(
+            ['powershell', '-Command', f'Select-String -Path "{LOG_FILE}" -Pattern "\\.lua:" | Select-Object -Last {tail_lines}'],
+            capture_output=True, text=True, startupinfo=startupinfo
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+        else:
+            return '无法提取错误信息（未找到.lua:格式的错误）'
+    except Exception as e:
+        return f'提取错误信息失败: {e}'
+
 # 导入配置模块（自动检测路径）
 try:
     from config import get_config, get_game_args
@@ -246,6 +290,26 @@ def run_lua_with_confirm(code, timeout=10, skip_ready_check=False):
 
     if response is None:
         result['error'] = '未收到响应（可能游戏卡死或未打补丁）'
+        return result
+
+    # 等待5秒后检查心跳（检测是否触发了断点）
+    print('[检测] 等待5秒后检查游戏心跳...')
+    time.sleep(5)
+
+    has_heartbeat = check_heartbeat_in_log(tail_lines=20)
+
+    if not has_heartbeat:
+        # 心跳停止 = 触发了断点（通常是Lua语法错误）
+        print('[警告] 检测到心跳停止，游戏可能卡在断点，正在自动恢复...')
+        debug_continue()  # 自动发送continue命令
+        time.sleep(3)
+
+        # 提取错误信息
+        errors = extract_lua_errors(tail_lines=20)
+        result['executed'] = True
+        result['success'] = False
+        result['error'] = f'Lua执行错误（已自动恢复）:\n{errors}'
+        print(f'[错误] {result["error"]}')
         return result
 
     if isinstance(response, dict):

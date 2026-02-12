@@ -221,6 +221,16 @@ print_result(result, verbose=True)
 | `lua "代码"` | 执行Lua（带确认） |
 | `run 脚本` | 执行tools/下的脚本 |
 
+### ⚠️ run命令自动恢复（已实现）
+
+**Lua语法错误 → 自动continue + 提取错误**
+
+- 发送命令后等待5秒检查心跳（日志中的 `AutoPlayer`）
+- 心跳停止 → 自动 `debug_continue()` → 提取 `.lua:` 错误
+- 返回 `success=False` 和错误详情
+
+**无需手动操作，错误会自动提取并返回。**
+
 ## 测试代码模板
 
 ### 单步测试
