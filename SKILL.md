@@ -220,6 +220,7 @@ print_result(result, verbose=True)
 | `c` / `continue` | 继续运行（从断点恢复） |
 | `lua "代码"` | 执行Lua（带确认） |
 | `run 脚本` | 执行tools/下的脚本 |
+| `screenshot` / `ss` | 截取游戏窗口画面（不抢焦点） |
 
 ### ⚠️ run命令自动恢复（已实现）
 
@@ -296,6 +297,67 @@ tail -f monitor.log
 - 发现错误立即打印，无需事后查日志
 - 卡死时自动尝试恢复并显示结果
 - 所有事件同时写入 `../.log/monitor_errors.log`
+
+## 📸 截图验证
+
+### 截图命令
+
+```bash
+# 截取游戏画面（保存到 C:/screenshot_temp/game_screenshot.png）
+python game_control.py screenshot
+
+# 简写
+python game_control.py ss
+
+# 指定保存路径
+python game_control.py ss C:/my_screenshots/test1.png
+```
+
+**Python 中调用：**
+```python
+from game_control import screenshot
+
+path = screenshot()  # 返回保存路径，失败返回 None
+```
+
+### 什么时候需要截图验证？
+
+日志检查只能验证"没有报错"，无法验证"画面效果正确"。
+
+| 场景 | 仅查日志 | 需要截图 |
+|------|---------|---------|
+| 修改了 UI 布局/位置/大小 | ❌ 不够 | ✅ 必须截图看布局效果 |
+| 修改了 UI 显示内容（文字/图标/颜色） | ❌ 不够 | ✅ 必须截图看显示效果 |
+| 修改了特效/动画相关代码 | ❌ 不够 | ✅ 必须截图看视觉效果 |
+| 新增了 UI 面板/窗口 | ❌ 不够 | ✅ 必须截图确认面板出现 |
+| 修改了纯逻辑（属性计算、伤害公式） | ✅ 日志够了 | ⬜ 可选 |
+| 修改了数据表（配置表）| ✅ 日志够了 | ⬜ 可选 |
+
+### 截图验证标准流程
+
+```bash
+cd <项目路径>/tools
+
+# 1. 修改代码后重启游戏
+python game_control.py frestart
+sleep 20
+
+# 2. 日志检查（必须）
+grep "\.lua:" ../.log/lua_player01.log | tail -20
+
+# 3. 截图验证（UI相关修改必须执行）
+python game_control.py ss
+
+# 4. 查看截图确认画面效果
+# 截图保存在 C:/screenshot_temp/game_screenshot.png
+```
+
+### 截图注意事项
+
+- 截图会短暂将游戏窗口置前台（约0.5秒），随后自动切回
+- 截图保存在 `C:/screenshot_temp/game_screenshot.png`（固定英文路径，避免编码问题）
+- 如果截图失败，确认游戏窗口正在运行且未最小化
+- 依赖安装：`pip install pywin32 dxcam Pillow`
 
 ## 热更新生效条件
 

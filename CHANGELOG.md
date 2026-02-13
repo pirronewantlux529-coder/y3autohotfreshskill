@@ -1,5 +1,33 @@
 # y3-game-test Skill 更新日志
 
+## [2.1.0] - 2026-02-13
+
+### 新增功能 🎉
+
+#### 游戏窗口截图 (`screenshot` / `ss`)
+- **新增 `game_control.py screenshot` 命令**：截取Y3游戏窗口画面，不抢焦点
+- **技术方案**：DXcam（Desktop Duplication API）+ 短暂置前台 + 自动切回，支持 DirectX 渲染内容
+- **窗口精确定位**：通过窗口类名排除 Console/Helper 窗口，精准捕获游戏渲染窗口
+- **Python API**：`from game_control import screenshot; path = screenshot()`
+
+#### 截图验证指南
+- **SKILL.md 新增截图验证章节**：明确何时需要截图验证（UI 修改必须截图，纯逻辑修改可选）
+- **标准流程**：重启游戏 → 日志检查 → 截图验证 → 确认画面效果
+
+### 技术细节
+
+- 使用 `win32gui.EnumWindows` + 窗口类名过滤精确定位游戏窗口（避免标题歧义）
+- `SetForegroundWindow` 短暂置前台约0.5秒，截完自动 `SetForegroundWindow` 切回原窗口
+- 截图保存在固定英文路径 `C:/screenshot_temp/` 避免 Unicode 编码问题
+- 新增依赖：`pywin32`、`dxcam`、`Pillow`
+- 新增 `_get_hidden_startupinfo()` 工具函数防止 PowerShell 弹窗抢焦点
+
+### 向后兼容性
+
+✅ 完全向后兼容。截图功能为纯新增，不影响现有命令。依赖库为可选安装，未安装时会给出友好提示。
+
+---
+
 ## [2.0.0] - 2025-02-12
 
 ### 新增功能 🎉

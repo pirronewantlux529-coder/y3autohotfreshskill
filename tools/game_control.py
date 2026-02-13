@@ -10,6 +10,7 @@
     python game_control.py run <脚本名>        # 执行 tools/ 下的 lua 脚本
     python game_control.py pet                 # 打开宠物测试界面
     python game_control.py goto                # 传送到演武场（战斗测试区域）
+    python game_control.py screenshot [保存路径] # 截取游戏窗口画面（不抢焦点）
 
 启动游戏:
     python game_control.py start               # 启动游戏客户端 (带控制台)
@@ -25,6 +26,16 @@ import json
 import re
 
 HOST = '127.0.0.1'
+
+# Windows 隐藏窗口的 startupinfo（防止 PowerShell 弹窗抢焦点）
+def _get_hidden_startupinfo():
+    """获取隐藏窗口的 startupinfo，防止 subprocess 弹窗抢焦点"""
+    if sys.platform == 'win32':
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = subprocess.SW_HIDE
+        return startupinfo
+    return None
 
 def is_game_running():
     """检查游戏是否在运行（Game_x64h 且有 conhost 子进程）
@@ -656,6 +667,138 @@ def debug_step_out():
         return True
     return False
 
+# ==================== 截图功能 ====================
+
+# 截图默认保存目录（使用英文路径避免 Unicode 兼容问题）
+SCREENSHOT_DIR = 'C:/screenshot_temp'
+SCREENSHOT_DEFAULT = os.path.join(SCREENSHOT_DIR, 'game_screenshot.png')
+
+def _find_game_window_hwnd():
+    """查找Y3游戏渲染窗口句柄（排除Console和Helper窗口）
+
+    通过窗口类名精确区分：
+    - ConsoleWindowClass = Y3控制台（日志窗口）
+    - CASCADIA_HOSTING_WINDOW_CLASS = Y3 Helper终端
+    - 其他class + title="Y3" = 游戏渲染窗口
+
+    Returns:
+        tuple: (hwnd, title) 或 (None, None)
+    """
+    try:
+        import win32gui
+        candidates = []
+        def enum_cb(hwnd, _):
+            if win32gui.IsWindowVisible(hwnd):
+                title = win32gui.GetWindowText(hwnd)
+                cls = win32gui.GetClassName(hwnd)
+                if title:
+                    candidates.append((hwnd, cls, title))
+        win32gui.EnumWindows(enum_cb, None)
+
+        EXCLUDE_CLASSES = {'ConsoleWindowClass', 'CASCADIA_HOSTING_WINDOW_CLASS'}
+        EXCLUDE_KEYWORDS = {'Helper', 'Console', 'Cursor', 'Code'}
+
+        for hwnd, cls, title in candidates:
+            if cls in EXCLUDE_CLASSES:
+                continue
+            if any(kw in title for kw in EXCLUDE_KEYWORDS):
+                continue
+            if title == 'Y3' or ('Y3' in title and 'Game' in title):
+                return hwnd, title
+        return None, None
+    except ImportError:
+        return None, None
+
+
+def screenshot(save_path=None):
+    """截取游戏窗口画面（短暂置前台后自动切回）
+
+    使用 DXcam（Desktop Duplication API）截取 DirectX 渲染内容。
+    流程：记住当前前台窗口 → 短暂将游戏窗口置前台 → DXcam截图 → 切回原窗口。
+    整个过程约0.5秒，用户感受到的只是一次极短的窗口闪烁。
+
+    依赖: pip install pywin32 dxcam Pillow
+
+    Args:
+        save_path: 保存路径，默认为 C:/screenshot_temp/game_screenshot.png
+
+    Returns:
+        str or None: 成功返回保存路径，失败返回 None
+    """
+    try:
+        import win32gui
+        import win32con
+        import dxcam
+        from ctypes import windll
+        from PIL import Image
+    except ImportError as e:
+        print(f'[错误] 缺少依赖库: {e}')
+        print('[提示] 请执行: pip install pywin32 dxcam Pillow')
+        return None
+
+    # 通过 hwnd 精确定位游戏渲染窗口
+    hwnd, title = _find_game_window_hwnd()
+    if not hwnd:
+        print('[错误] 找不到Y3游戏窗口，请确认游戏正在运行')
+        return None
+
+    print(f'[截图] 正在捕获窗口: {title} (hwnd={hwnd})')
+
+    foreground_hwnd = None
+    try:
+        windll.user32.SetProcessDPIAware()
+
+        # 记住当前前台窗口，截图完切回
+        foreground_hwnd = win32gui.GetForegroundWindow()
+
+        # 短暂将游戏窗口置前台
+        win32gui.ShowWindow(hwnd, win32con.SW_SHOWNOACTIVATE)
+        windll.user32.SetForegroundWindow(hwnd)
+        time.sleep(0.5)
+
+        # 获取窗口区域
+        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+        w = right - left
+        h = bottom - top
+
+        if w <= 0 or h <= 0:
+            print(f'[错误] 窗口尺寸异常: {w}x{h}')
+            windll.user32.SetForegroundWindow(foreground_hwnd)
+            return None
+
+        # DXcam 截取游戏窗口区域
+        cam = dxcam.create()
+        frame = cam.grab(region=(left, top, right, bottom))
+        del cam
+
+        # 立刻切回原前台窗口
+        if foreground_hwnd and win32gui.IsWindow(foreground_hwnd):
+            windll.user32.SetForegroundWindow(foreground_hwnd)
+
+        if frame is None:
+            print('[错误] DXcam 截图返回空帧')
+            return None
+
+        img = Image.fromarray(frame)
+
+        # 保存
+        final_path = save_path or SCREENSHOT_DEFAULT
+        os.makedirs(os.path.dirname(os.path.abspath(final_path)), exist_ok=True)
+        img.save(final_path)
+        print(f'[截图] 已保存到: {final_path} ({w}x{h})')
+        return final_path
+
+    except Exception as e:
+        # 出错时也尝试切回原窗口
+        try:
+            if foreground_hwnd and win32gui.IsWindow(foreground_hwnd):
+                windll.user32.SetForegroundWindow(foreground_hwnd)
+        except:
+            pass
+        print(f'[错误] 截图失败: {e}')
+        return None
+
+
 def show_status():
     """显示游戏运行状态"""
     running, msg = is_game_running()
@@ -689,6 +832,7 @@ def main():
         print('  stepinto / s     - 单步进入')
         print('  stepout / o      - 单步跳出')
         print('  break "代码"     - 在代码前插入断点执行')
+        print('  screenshot [路径] - 截取游戏窗口画面（不抢焦点）')
         print('  start            - 启动游戏客户端 (旧方法，不推荐)')
         print('  reload [module]  - 热更新模块 (默认 base.hotfresh)')
         print('  restart          - 重启游戏 (switch_level，游戏卡死时无效)')
@@ -720,6 +864,9 @@ def main():
         launch_game()
     elif cmd == 'launch2':
         launch_game_y3helper()
+    elif cmd == 'screenshot' or cmd == 'ss':
+        save_path = args[1] if len(args) > 1 else None
+        screenshot(save_path)
     elif cmd == 'start':
         start_game()
     elif cmd == 'reload':
