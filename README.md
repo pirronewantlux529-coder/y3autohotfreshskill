@@ -117,101 +117,21 @@ python game_control.py config
 
 ## 使用
 
-### 命令行（基础）
-
 ```bash
-# 启动游戏（无UAC弹窗）
-python game_control.py launch
+cd <项目路径>/script/tools
 
-# 快速进入游戏
-python game_control.py enter
-
-# 强制杀游戏进程
-python game_control.py kill
-
-# 强制重启（杀进程 → 启动 → 进入游戏）
-python game_control.py frestart
+python game_control.py launch     # 启动游戏（无UAC弹窗）
+python game_control.py enter      # 快速进入游戏
+python game_control.py frestart   # 强制重启（杀进程 → 启动 → 进入）
+python game_control.py kill       # 强制杀游戏进程
+python game_control.py ss         # 截取游戏窗口画面
+python game_control.py run <脚本> # 执行 tools/ 下的 lua 脚本
+python game_control.py lua "代码" # 执行任意 Lua 代码
 ```
 
-### 推荐用法：lua_executor（自动检测错误）
+安装完成后 Claude Code 会自动调用这些命令，你只需要用自然语言告诉它你想做什么。
 
-```bash
-# 执行Lua代码（自动检测错误）
-python lua_executor.py "print('test')"
-
-# 执行测试脚本（自动检测错误）
-python lua_executor.py --file pet_test
-```
-
-**Python脚本中使用**：
-```python
-from lua_executor import execute_lua, print_result
-
-result = execute_lua("your_code")
-print_result(result)
-
-if not result.success:
-    print('失败:', result.error)
-    exit(1)
-```
-
-### 旧方式：game_control.py
-
-```bash
-# 执行 Lua 代码（带确认，但不自动检查错误）
-python game_control.py lua "print('Hello!')"
-
-# 执行测试脚本
-python game_control.py run debug_template
-```
-
-### 监控系统
-
-**短期测试（推荐）**：
-```bash
-# 使用 lua_executor，每次执行自动检测错误
-python lua_executor.py "your_code"
-```
-
-**长时间运行（如压力测试）**：
-```bash
-# 启动游戏
-python game_control.py launch && sleep 20
-python lua_executor.py --file quick_enter && sleep 8
-
-# 启动心跳监控器（前台实时显示）
-python heartbeat_monitor.py --interval 10
-
-# 或后台运行
-python heartbeat_monitor.py --interval 10 > monitor.log 2>&1 &
-tail -f monitor.log
-```
-
-**监控器功能对比**：
-
-| 工具 | 用途 | 使用场景 |
-|------|------|---------|
-| `lua_executor.py` | 执行Lua并自动检测错误 | 日常开发测试 |
-| `heartbeat_monitor.py` | 心跳检测，自动恢复卡死 | 长时间无人值守运行 |
-| `file_listener.py` | 实时显示游戏消息 | 查看实时输出（可选） |
-
-> **首次使用前必须创建计划任务**（以管理员身份运行）：
-> - `setup_launch_task.bat` - 创建启动游戏任务（无UAC弹窗启动）
-> - `setup_kill_task.bat` - 创建杀进程任务（强制杀游戏进程）
->
-> 不创建也能用，但会弹UAC确认框。
-
-### Claude Code
-
-安装完成后，直接告诉 Claude：
-
-```
-启动游戏
-热更新代码
-执行测试脚本 xxx
-```
-
-Claude 会自动调用相关命令。
+更多命令和 API 详见 [SKILL.md](SKILL.md)。
 
 ## 文件结构
 
