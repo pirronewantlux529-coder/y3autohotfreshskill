@@ -133,18 +133,6 @@ python game_control.py kill
 python game_control.py frestart
 ```
 
-### 截图验证（UI 修改必用）
-
-```bash
-# 截取游戏窗口画面（不抢焦点，约0.5秒闪烁）
-python game_control.py ss
-
-# 指定保存路径
-python game_control.py screenshot C:/my_screenshots/test1.png
-```
-
-截图保存在 `C:/screenshot_temp/game_screenshot.png`。AI 可直接读取分析画面效果，适合验证 UI 布局、显示内容等视觉改动。
-
 ### 推荐用法：lua_executor（自动检测错误）
 
 ```bash
