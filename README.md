@@ -26,6 +26,7 @@ Y3（英雄三国，KK对战平台游戏）游戏热更新与测试调试工具�
 - 🔧 **调试工具** - 内置调试脚本模板和测试示例
 - 🔍 **异常捕获** - 自动捕获引擎级异常，写入消息文件供监听
 - 💓 **心跳监控** - 长时间运行时自动检测卡死并恢复
+- 📸 **游戏截图** - 截取 DirectX 渲染的游戏窗口画面，不抢焦点，AI 可直接分析画面验证 UI 效果
 
 ## 💡 使用建议
 
@@ -131,6 +132,18 @@ python game_control.py kill
 # 强制重启（杀进程 → 启动 → 进入游戏）
 python game_control.py frestart
 ```
+
+### 截图验证（UI 修改必用）
+
+```bash
+# 截取游戏窗口画面（不抢焦点，约0.5秒闪烁）
+python game_control.py ss
+
+# 指定保存路径
+python game_control.py screenshot C:/my_screenshots/test1.png
+```
+
+截图保存在 `C:/screenshot_temp/game_screenshot.png`。AI 可直接读取分析画面效果，适合验证 UI 布局、显示内容等视觉改动。
 
 ### 推荐用法：lua_executor（自动检测错误）
 
@@ -242,7 +255,7 @@ y3-game-test/
 
 - Cursor 或 VSCode
 - **Y3 Helper 插件 (Y3小助手)** - 必须安装，否则无法使用。请自行查询 Y3 Helper 的安装方法
-- Python 3.x
+- Python 3.x + 依赖库（详见 [安装指南](Y3_HELPER_SETUP.md)）
 
 ## ⚠️ 注意事项
 

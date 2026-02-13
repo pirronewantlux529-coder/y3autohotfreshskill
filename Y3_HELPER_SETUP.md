@@ -27,7 +27,27 @@ Claude 在开始安装前需要向用户确认以下信息：
 
 ## 📋 安装步骤
 
-### 步骤 0：复制 tools 目录到项目（重要！）
+### 步骤 0：安装 Python 依赖
+
+```bash
+# 必须安装 - 游戏控制核心功能需要
+pip install pywin32
+
+# 截图功能需要 - 用于截取游戏窗口画面（AI辅助验证UI效果）
+pip install dxcam Pillow
+```
+
+**验证安装**：
+```bash
+python -c "import win32gui; print('pywin32 OK')"
+python -c "import dxcam; print('dxcam OK')"
+python -c "from PIL import Image; print('Pillow OK')"
+```
+
+> 💡 **dxcam 和 Pillow 是可选依赖**，不安装不影响其他功能，只是截图命令 (`screenshot`/`ss`) 无法使用。
+> 如果截图时提示缺少依赖，按上述命令安装即可。
+
+### 步骤 1：复制 tools 目录到项目（重要！）
 
 **tools 目录必须放在项目的 script 目录下，不能放在其他位置！**
 
@@ -65,7 +85,7 @@ cp -r .claude/skills/y3-game-test/tools ./tools
 
 > ⚠️ **关键检查**：复制后，`tools` 目录和 `main.lua` 应该在同一层级！
 
-### 步骤 1：验证配置检测
+### 步骤 2：验证配置检测
 
 运行配置检测脚本，确认路径都能正确识别：
 
@@ -113,7 +133,7 @@ python config.py --search C:\Users\你的用户名\Documents
 python config.py --clear
 ```
 
-### 步骤 2：检查 Y3 Helper 插件
+### 步骤 3：检查 Y3 Helper 插件
 
 Claude 执行：
 ```python
@@ -141,7 +161,7 @@ else:
 4. 重启编辑器后再次运行安装
 ```
 
-### 步骤 3：创建项目 CLAUDE.md（重要！）
+### 步骤 4：创建项目 CLAUDE.md（重要！）
 
 检查 script 目录下是否存在 `CLAUDE.md`。
 
@@ -202,7 +222,7 @@ else:
 - 确保每次调用都有据可查
 - 新手上手更快更准确
 
-### 步骤 4：安装 Y3 Helper 补丁（错误捕获）
+### 步骤 5：安装 Y3 Helper 补丁（错误捕获）
 
 Y3 Helper 需要打两个补丁来捕获所有错误：
 
@@ -235,7 +255,7 @@ Y3 Helper 调试异常捕获补丁
 [提示] 请重启 Cursor/VSCode 使补丁生效
 ```
 
-### 步骤 5：修改 Y3 Helper 插件（添加 runLua 命令）
+### 步骤 6：修改 Y3 Helper 插件（添加 runLua 命令）
 
 Claude 执行 `tools/install_y3helper_runlua.py`：
 
@@ -252,11 +272,11 @@ python install_y3helper_runlua.py
 请重启 VSCode/Cursor 使修改生效
 ```
 
-### 步骤 6：配置游戏端代码
+### 步骤 7：配置游戏端代码
 
 Claude 检查 `base/debugs.lua` 是否包含以下代码：
 
-#### 6.1 Y3 Helper 消息处理器
+#### 7.1 Y3 Helper 消息处理器
 
 ```lua
 -- 需要确保以下代码存在于 base/debugs.lua
@@ -273,7 +293,7 @@ if y3.develop and y3.develop.helper then
 end
 ```
 
-#### 6.2 就绪标记（重要！）
+#### 7.2 就绪标记（重要！）
 
 **必须添加此代码**，确保 `game_control.py` 在游戏完全加载后才执行命令：
 
@@ -292,9 +312,9 @@ end)
 - 如果在加载完成前执行命令，可能导致命令失败或行为异常
 - `game_control.py` 会检测日志中的 `[Y3_HELPER_READY]` 标记，只有看到这个标记才会执行命令
 
-### 步骤 7：创建计划任务（推荐，无UAC弹窗）
+### 步骤 8：创建计划任务（推荐，无UAC弹窗）
 
-#### 6.1 生成启动脚本
+#### 8.1 生成启动脚本
 
 先运行自动生成脚本，它会读取项目配置并生成 `launch_game.bat`：
 
@@ -312,7 +332,7 @@ python generate_launch_bat.py
   关卡 ID: xxx-xxx-xxx
 ```
 
-#### 6.2 创建计划任务
+#### 8.2 创建计划任务
 
 以管理员权限运行以下脚本：
 
@@ -334,11 +354,11 @@ setup_kill_task.bat
 
 > ⚠️ **必须以管理员身份运行 bat 文件**：右键点击 → "以管理员身份运行"
 
-### 步骤 8：重启编辑器
+### 步骤 9：重启编辑器
 
 **必须完全关闭 Cursor/VSCode（包括所有进程），然后重新打开项目。**
 
-### 步骤 9：验证安装
+### 步骤 10：验证安装
 
 ```bash
 cd <项目路径>/script/tools
@@ -444,7 +464,7 @@ python game_control.py frestart
 
 ---
 
-### 步骤 10：配置 Memory 记忆文件（重要！）
+### 步骤 11：配置 Memory 记忆文件（重要！）
 
 **⚠️ memory/ 目录内的文件是示例模板，必须根据你的实际项目路径修改！**
 
@@ -481,4 +501,6 @@ Claude 在安装完成后确认：
 - [ ] 游戏能通过 `game_control.py launch` 启动
 - [ ] 消息能正确写入 `%TEMP%\y3helper_messages.jsonl`
 - [ ] 异常能被捕获到消息文件
+- [ ] Python 依赖已安装（pywin32 必须，dxcam + Pillow 截图用）
+- [ ] 截图功能正常：`python game_control.py ss` 能截到游戏画面（可选）
 - [ ] memory/ 目录已根据项目路径修改（可选但推荐）
