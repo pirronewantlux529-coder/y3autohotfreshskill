@@ -6,39 +6,53 @@ description: 通过Y3 Helper执行Lua代码并自动检测错误，启动游戏�
 
 Y3 Helper执行Lua代码，自动检测日志错误和异常。
 
+## 🚨 最高铁律：没有打印 = 100%有错误！
+
+**⚠️ 这条规则高于一切：**
+
+- 执行 `run` 命令后，如果**没看到任何游戏内 print 输出** → 100%代码有错误
+- "没有输出"不是"没有错误"，恰恰相反——代码在出错点就中断了，后面的 print 根本没执行到
+- **必须立即检查日志**，分析错误原因并修复
+
+### `run` 命令输出解读
+
+| 输出 | 含义 | 操作 |
+|------|------|------|
+| `[RUN-OK]` | 脚本执行成功 | 继续下一步 |
+| `[RUN-FAIL]` | 脚本执行失败 | **停止！分析错误详情，修复代码** |
+| 没有任何 `[RUN-` 开头的行 | 游戏卡死/未响应 | 执行 `python game_control.py frestart` |
+| Bash exit code 非零 | 命令失败 | **停止！不要忽略，分析输出中的错误** |
+
+### `run` 命令只支持脚本文件名
+
+```bash
+# ✅ 正确：执行 tools/my_test.lua 脚本
+python game_control.py run my_test
+
+# ❌ 错误：run 不支持行内 Lua 代码
+python game_control.py run "print('hello')"
+
+# 需要行内代码用 lua 命令
+python game_control.py lua "print('hello')"
+```
+
 ## 🚨 核心铁律
 
 ### 命令中断检测与恢复流程
 
-**发送Lua命令后的检查流程：**
+**`run` 命令已内置自动恢复**：心跳停止 → 自动 continue → 提取 `.lua:` 错误 → 返回 `[RUN-FAIL]`。
 
-1. **发送命令后等待5-8秒**
-2. **检查心跳包**（查看日志中是否有AutoPlayer状态报告）
-3. **如果心跳停止** → 100%确定命令有错误：
-   ```bash
-   # Step 1: 继续游戏
-   python game_control.py continue
-   sleep 3
-
-   # Step 2: 检查错误（使用 .lua: 而不是 [error]）
-   grep "\.lua:" .log/lua_player01.log | tail -20
-
-   # Step 3: 分析错误，修复代码
-   # Step 4: 重新发送命令
-   ```
-
-4. **如果心跳正常但没输出** → 检查其他问题（文件路径、模块名等）
+**如果自动恢复也失败：**
+```bash
+# 强制重启（自动 kill → launch → 等待 → enter）
+python game_control.py frestart
+# frestart 已内置进入游戏步骤，完成后即可执行命令
+```
 
 ### 错误检测铁律
 
-**❌ 错误的做法：**
 ```bash
-grep "\[error\]" .log/lua_player01.log  # 只能捕获部分错误！
-```
-
-**✅ 正确的做法：**
-```bash
-grep "\.lua:" .log/lua_player01.log | tail -20  # 捕获所有Lua错误（.lua:行号格式）
+grep "\.lua:" .log/lua_player01.log | tail -20  # 捕获所有Lua错误
 ```
 
 ### 每次发送Lua必须检查错误！
@@ -57,9 +71,9 @@ if not result.success:
 
 **绝不能：**
 - ❌ 发送代码后不检查就继续
-- ❌ 用 `game_control.py lua` 后不查日志
-- ❌ 假设"没报错=成功"
-- ❌ 只查 `[error]` 而不查 `.lua:`
+- ❌ 看到 Bash 输出中有报错信息却不分析，继续执行下一步
+- ❌ 假设"没有打印=没有错误"——**恰恰相反！**
+- ❌ Bash exit code 非零时不管不顾
 
 ## 标准测试流程
 
@@ -226,11 +240,50 @@ print_result(result, verbose=True)
 
 **Lua语法错误 → 自动continue + 提取错误**
 
-- 发送命令后等待5秒检查心跳（日志中的 `AutoPlayer`）
+- 发送命令后等待5秒检查心跳（日志中的 `[HEARTBEAT]` 或 `AutoPlayer`）
 - 心跳停止 → 自动 `debug_continue()` → 提取 `.lua:` 错误
 - 返回 `success=False` 和错误详情
 
 **无需手动操作，错误会自动提取并返回。**
+
+## ⚠️ `run` 命令常见错误及规避
+
+### 行内Lua代码语法陷阱
+
+`game_control.py run "lua代码"` 会将字符串传给Y3引擎解析，以下写法**容易出错**：
+
+```lua
+-- ❌ 错误：h:method() 中括号被shell或Y3 wrap_code误解析
+print('[状态] battle='..tostring(h:is_in_battle()))
+
+-- ❌ 错误：~= 在字符串拼接中可能导致解析异常
+tostring(h.timer~=nil)
+
+-- ❌ 错误：直接使用 player 全局变量（tool脚本中不存在）
+local h = player.mainhero
+```
+
+### ✅ 正确做法
+
+**行内代码只适合极简语句**：
+```bash
+python game_control.py lua "print('hello')"
+```
+
+**超过一行 → 写成工具脚本文件**（推荐）：
+```bash
+# 创建 tools/my_test.lua
+# 然后执行：
+python game_control.py run my_test
+```
+
+**工具脚本中获取玩家对象**：
+```lua
+-- tools/my_test.lua
+local p = y3.player(1)        -- ✅ 正确：通过y3.player获取
+local h = p.mainhero           -- ✅ 正确
+-- local h = player.mainhero   -- ❌ 错误：player不是全局变量
+```
 
 ## 测试代码模板
 
@@ -398,12 +451,86 @@ python game_control.py c
 python game_control.py frestart
 ```
 
+## 🐕 Game Watchdog（后台持久监控）
+
+### 原理
+
+`game_watchdog.py` 作为 Claude Code 的后台 Task 运行（`run_in_background=true`）。它持续监控游戏健康状态，自动恢复大部分问题。**只有当自动恢复连续失败时**，脚本 exit(1)，Claude 自动收到通知。
+
+### 启动 Watchdog
+
+**⚠️ 启动顺序很重要：必须先确认游戏状态正常，再启动 watchdog！**
+
+```bash
+# 1. 先确认游戏正在运行且已进入
+python game_control.py status
+
+# 2. 后台启动 watchdog（watchdog 内置启动等待，会等心跳正常后才进入监控）
+python tools/game_watchdog.py --max-failures 3
+```
+
+**Claude Code 中使用 `run_in_background=true`**：
+```
+# 先检查 status，确认游戏正常
+Bash(command="python tools/game_control.py status")
+# 再后台启动
+Bash(command="python tools/game_watchdog.py --max-failures 3", run_in_background=true)
+```
+
+**Watchdog 启动阶段**：脚本启动后会先进入 STARTUP 等待阶段（最长120秒），轮询检测游戏心跳。只有检测到有效心跳后，才进入正式监控循环。这避免了游戏加载期间的误报。
+
+### 参数
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--max-failures` | 3 | 连续恢复失败N次后 exit(1) 通知Claude |
+| `--timeout` | 86400 | 最大运行时间(秒)，超时正常 exit(0) |
+| `--check-interval` | 15 | 健康检查间隔(秒) |
+| `--stale-timeout` | 45 | 最后心跳超时(秒)，判定卡死。Y3日志有~27s缓冲延迟，45s=延迟+容错 |
+
+### Watchdog 自动恢复策略
+
+| 问题类型 | 第一步 | 第二步 |
+|----------|--------|--------|
+| `crashed`（进程死亡） | 直接 frestart | — |
+| `error`（Lua报错） | continue（释放断点） | frestart |
+| `stale`（心跳超时） | continue + 验证心跳恢复 | frestart |
+
+### Claude 收到 Watchdog 通知时
+
+Watchdog exit(1) 的输出包含结构化报告：
+```
+=== GAME WATCHDOG ALERT ===
+Reason: Auto-recovery failed 3 consecutive times
+Last problem: error
+Last error: xxx.lua:123: attempt to call nil
+...
+Action needed: Check game state, fix the error, then restart watchdog
+```
+
+**收到通知后必须：**
+1. 阅读错误详情，定位问题
+2. 修复代码
+3. 手动 frestart 游戏
+4. 重新启动 watchdog
+
+### 检查 Watchdog 状态
+
+```bash
+# 非阻塞检查（不等待完成）
+TaskOutput(task_id="watchdog_task_id", block=false)
+
+# 查看报告文件
+cat tools/watchdog_report.log | tail -20
+```
+
 ## 相关文件
 
 | 文件 | 说明 |
 |------|------|
 | `tools/lua_executor.py` | 自动错误检测的执行器 |
 | `tools/game_control.py` | 游戏控制脚本 |
+| `tools/game_watchdog.py` | 后台守护监控（Claude集成） |
 | `tools/heartbeat_monitor.py` | 心跳监控器 |
 | `tools/test_with_executor.py` | 使用示例 |
 | `README_NEW_WORKFLOW.md` | 完整工作流程说明 |

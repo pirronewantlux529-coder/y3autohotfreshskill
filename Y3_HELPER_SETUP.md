@@ -65,6 +65,7 @@ python -c "from PIL import Image; print('Pillow OK')"
 │           ├── tools/             # ⭐ tools 必须在这里！
 │           │   ├── config.py
 │           │   ├── game_control.py
+│           │   ├── game_watchdog.py
 │           │   └── ...
 │           └── ...
 ```
@@ -274,9 +275,9 @@ python install_y3helper_runlua.py
 
 ### 步骤 7：配置游戏端代码
 
-Claude 检查 `base/debugs.lua` 是否包含以下代码：
+Claude 检查 `base/debugs.lua` 是否包含以下两段代码：
 
-#### 7.1 Y3 Helper 消息处理器
+#### 7a. Y3 Helper 消息处理器
 
 ```lua
 -- 需要确保以下代码存在于 base/debugs.lua
@@ -293,24 +294,24 @@ if y3.develop and y3.develop.helper then
 end
 ```
 
-#### 7.2 就绪标记（重要！）
+#### 7b. 心跳定时器（game_watchdog 必需）
 
-**必须添加此代码**，确保 `game_control.py` 在游戏完全加载后才执行命令：
+在 `游戏-初始化` 事件中，确保有心跳定时器：
 
 ```lua
--- Y3 Helper 就绪标记（game_control.py 等待此标记后才执行命令）
--- 使用游戏初始化事件 + 1秒延迟，确保所有系统加载完毕
 y3.game:event('游戏-初始化', function()
     y3.ltimer.wait(1, function()
         print('[Y3_HELPER_READY]')
     end)
+
+    -- 心跳定时器：每5秒打印一次，供 game_watchdog.py 检测游戏存活
+    y3.ltimer.loop(5, function()
+        print('[HEARTBEAT]')
+    end)
 end)
 ```
 
-**为什么需要这个标记**：
-- 游戏启动后需要时间加载各种系统（UI、网络、存档等）
-- 如果在加载完成前执行命令，可能导致命令失败或行为异常
-- `game_control.py` 会检测日志中的 `[Y3_HELPER_READY]` 标记，只有看到这个标记才会执行命令
+**为什么需要心跳**：`game_watchdog.py` 通过解析日志中最后一条 `[HEARTBEAT]` 的时间戳来判断游戏是否存活。没有心跳时，游戏正常运行但无输出，watchdog 会误判为"卡死"。心跳每 5 秒写入一行 `[HEARTBEAT]`，配合 watchdog 默认 45 秒 stale 超时（Y3 日志有 ~27 秒文件缓冲延迟），确保能准确区分"正常静默"和"真正卡死"。
 
 ### 步骤 8：创建计划任务（推荐，无UAC弹窗）
 
@@ -354,11 +355,49 @@ setup_kill_task.bat
 
 > ⚠️ **必须以管理员身份运行 bat 文件**：右键点击 → "以管理员身份运行"
 
-### 步骤 9：重启编辑器
+### 步骤 9：验证 Watchdog 后台监控（可选）
+
+安装完成后，可以启动 `game_watchdog.py` 进行后台持久监控：
+
+```bash
+cd <项目路径>/script
+
+# ⚠️ 先确认游戏正在运行且已进入
+python tools/game_control.py status
+
+# 快速测试（60秒超时，验证 watchdog 能正常运行）
+python tools/game_watchdog.py --timeout 60 --check-interval 15 --max-failures 2
+```
+
+**预期输出**：
+```
+[...] Game Watchdog started
+[...] max_failures=2 | timeout=60s | interval=15s | stale=45s
+[...] [STARTUP] Waiting for game to become healthy (heartbeat check)...
+[...] [STARTUP] Game is healthy, starting monitoring loop
+...
+=== GAME WATCHDOG SHUTDOWN ===
+Reason: Timeout reached (normal shutdown)
+No action needed (normal shutdown)
+```
+
+**注意**：Y3 日志有 ~27 秒的文件 I/O 缓冲延迟，所以正常情况下 heartbeat diff 约 24-28 秒。stale_timeout 默认 45 秒已包含足够容错。
+
+**如果看到 stale 误判**：确认 `base/debugs.lua` 中的 `[HEARTBEAT]` 定时器已添加（步骤 7b），并重启游戏。
+
+**Claude Code 中的使用方式**：
+```
+# 先检查游戏状态
+Bash(command="python tools/game_control.py status")
+# 再后台启动 watchdog（内置 STARTUP 等待阶段，会等心跳正常后才监控）
+Bash(command="python tools/game_watchdog.py --max-failures 3", run_in_background=true)
+```
+
+### 步骤 10：重启编辑器
 
 **必须完全关闭 Cursor/VSCode（包括所有进程），然后重新打开项目。**
 
-### 步骤 10：验证安装
+### 步骤 11：验证安装
 
 ```bash
 cd <项目路径>/script/tools
@@ -395,9 +434,11 @@ python game_control.py lua "print('[test] Hello!')"
 ```
 <项目路径>/tools/
 ├── game_control.py              # 游戏控制主脚本
+├── game_watchdog.py             # 后台守护监控（Claude Code 集成）
 ├── config.py                    # 配置自动检测（无需手动配置）
 ├── generate_launch_bat.py       # 自动生成 launch_game.bat
 ├── file_listener.py             # 消息文件监听器
+├── heartbeat_monitor.py         # 心跳监控器（前台实时显示）
 ├── patch_y3helper_http.py       # 补丁1：print消息转发
 ├── patch_debugger_exception.py  # 补丁2：异常捕获
 ├── install_y3helper_runlua.py   # runLua命令安装
@@ -462,9 +503,15 @@ python game_control.py kill
 python game_control.py frestart
 ```
 
+### 问题：Watchdog 心跳误报（stale false positive）
+- 确认 `base/debugs.lua` 中包含 `[HEARTBEAT]` 定时器（步骤 7b）
+- 确认游戏已重启（修改 debugs.lua 后必须重启）
+- 确认日志中能看到 `[HEARTBEAT]`：`grep HEARTBEAT .log/lua_player01.log | tail -5`
+- Y3 日志有 ~27s 文件缓冲延迟，正常的 heartbeat diff 约 24-28s
+
 ---
 
-### 步骤 11：配置 Memory 记忆文件（重要！）
+### 步骤 12：配置 Memory 记忆文件（重要！）
 
 **⚠️ memory/ 目录内的文件是示例模板，必须根据你的实际项目路径修改！**
 
@@ -496,11 +543,14 @@ Claude 在安装完成后确认：
 - [ ] print 消息转发补丁已应用
 - [ ] 调试器异常捕获补丁已应用
 - [ ] runLua 命令已添加到插件
-- [ ] debugs.lua 包含消息处理器
+- [ ] debugs.lua 包含 Y3 Helper 消息处理器
+- [ ] debugs.lua 包含 `[HEARTBEAT]` 心跳定时器（每5秒）
 - [ ] 编辑器已重启
 - [ ] 游戏能通过 `game_control.py launch` 启动
 - [ ] 消息能正确写入 `%TEMP%\y3helper_messages.jsonl`
 - [ ] 异常能被捕获到消息文件
 - [ ] Python 依赖已安装（pywin32 必须，dxcam + Pillow 截图用）
+- [ ] 日志中能看到 `[HEARTBEAT]` 输出（`grep HEARTBEAT .log/lua_player01.log`）
+- [ ] game_watchdog.py 能正常运行（`python tools/game_watchdog.py --timeout 20`）
 - [ ] 截图功能正常：`python game_control.py ss` 能截到游戏画面（可选）
 - [ ] memory/ 目录已根据项目路径修改（可选但推荐）

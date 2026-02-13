@@ -140,8 +140,8 @@ def check_heartbeat_in_log(tail_lines=20):
                 recent = ''.join(lines)
             else:
                 recent = ''.join(lines[-tail_lines:])
-            # 检查是否有AutoPlayer心跳标记
-            return 'AutoPlayer' in recent or '[自动玩家]' in recent
+            # 检查是否有心跳标记（AutoPlayer 或 debugs.lua 的 [HEARTBEAT]）
+            return 'AutoPlayer' in recent or '[自动玩家]' in recent or '[HEARTBEAT]' in recent
     except:
         return True  # 读取失败时假设正常
 
