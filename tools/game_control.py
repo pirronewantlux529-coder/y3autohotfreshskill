@@ -44,11 +44,12 @@ def is_game_running():
         tuple: (是否运行, 详情消息)
     """
     try:
-        # 获取 Game_x64h 进程ID
+        # 获取 Game_x64h 进程ID（使用隐藏窗口防止抢焦点）
+        startupinfo = _get_hidden_startupinfo()
         result = subprocess.run(
             ['powershell', '-Command',
              'Get-Process Game_x64h -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id'],
-            capture_output=True, text=True
+            capture_output=True, text=True, startupinfo=startupinfo
         )
         if result.returncode != 0 or not result.stdout.strip():
             return False, 'Game_x64h 进程不存在'
@@ -60,7 +61,7 @@ def is_game_running():
             result2 = subprocess.run(
                 ['powershell', '-Command',
                  f"Get-WmiObject Win32_Process -Filter \"ParentProcessId={game_pid} AND Name='conhost.exe'\" | Select-Object -ExpandProperty ProcessId"],
-                capture_output=True, text=True
+                capture_output=True, text=True, startupinfo=startupinfo
             )
             if result2.stdout.strip():
                 return True, f'游戏运行中 (PID: {game_pid})'
@@ -168,6 +169,59 @@ def extract_lua_errors(tail_lines=20):
     except Exception as e:
         return f'提取错误信息失败: {e}'
 
+
+def get_log_line_count():
+    """获取日志文件当前行数"""
+    try:
+        if not os.path.exists(LOG_FILE):
+            return 0
+        with open(LOG_FILE, 'r', encoding='utf-8', errors='ignore') as f:
+            return sum(1 for _ in f)
+    except:
+        return 0
+
+
+def extract_lua_errors_since(since_line_count):
+    """提取自某行之后新增的 Lua 错误（同时检测 [error] 和 .lua: 两种模式）
+
+    通过行数差异精确定位新增内容，不会误报旧错误。
+
+    Args:
+        since_line_count: 命令发送前的日志行数
+
+    Returns:
+        str: 新增的错误文本，无错误返回空字符串
+    """
+    try:
+        if not os.path.exists(LOG_FILE):
+            return ''
+
+        with open(LOG_FILE, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+
+        # 只检查新增的行
+        new_lines = lines[since_line_count:] if since_line_count < len(lines) else []
+        if not new_lines:
+            return ''
+
+        errors = []
+        for line in new_lines:
+            line_stripped = line.strip()
+            if not line_stripped:
+                continue
+            # 模式1：[error] 标记
+            is_error = '[error]' in line_stripped.lower()
+            # 模式2：.lua:行号 格式（排除正常的 [debug]/[info]/[warn] 打印）
+            if not is_error and re.search(r'\.lua:\d+', line_stripped):
+                if not re.search(r'\[\s*(debug|info|warn)\s*\]', line_stripped, re.IGNORECASE):
+                    is_error = True
+            if is_error:
+                errors.append(line_stripped)
+
+        return '\n'.join(errors[-10:]) if errors else ''
+    except Exception:
+        return ''
+
 # 导入配置模块（自动检测路径）
 try:
     from config import get_config, get_game_args
@@ -260,8 +314,100 @@ def run_lua_code(code, wait_log=True, safe_mode=True):
     return run_lua_with_confirm(f"_reloadlua('{lua_path}')")
 
 
+def _verify_heartbeat_alive(max_wait=8, check_interval=2):
+    """验证游戏心跳是否正常（日志文件是否持续更新）
+
+    核心判据：日志文件的 mtime 是否在持续变化。
+    Y3引擎有 ~27s 的日志缓冲延迟，所以我们不能只看一次 mtime，
+    而是连续检查 mtime 是否在推进。
+
+    如果日志 mtime 在 max_wait 期间完全没变化，说明游戏卡死了。
+    如果日志 mtime 有更新，再检查最近日志中是否有心跳标记。
+
+    Args:
+        max_wait: 最长等待时间（秒）
+        check_interval: 检查间隔（秒）
+
+    Returns:
+        tuple: (is_alive: bool, detail: str)
+    """
+    initial_mtime = get_log_mtime()
+    if initial_mtime == 0:
+        return False, '日志文件不存在'
+
+    # 连续检查：mtime 是否在推进
+    elapsed = 0
+    while elapsed < max_wait:
+        time.sleep(check_interval)
+        elapsed += check_interval
+        current_mtime = get_log_mtime()
+
+        if current_mtime > initial_mtime:
+            # 日志有更新，进一步检查心跳标记
+            if check_heartbeat_in_log(tail_lines=30):
+                return True, '心跳正常'
+            # mtime 变了但没心跳标记 — 可能是错误日志在刷，再等等
+            continue
+
+    # max_wait 内 mtime 完全没变 或 没有心跳
+    current_mtime = get_log_mtime()
+    if current_mtime == initial_mtime:
+        return False, f'日志 {max_wait}s 内无任何更新（游戏冻结）'
+    else:
+        # mtime 变了但始终没心跳
+        return False, f'日志有更新但无心跳标记（可能正在报错）'
+
+
+def _auto_recover_breakpoint(max_attempts=3):
+    """自动恢复断点：连续发 continue 直到心跳恢复
+
+    Y3引擎的特性：错误命令恢复后会继续执行到下一个错误，再次断点。
+    所以需要多次 continue 才能完全恢复。
+
+    Args:
+        max_attempts: 最多尝试 continue 的次数
+
+    Returns:
+        tuple: (recovered: bool, attempts: int, errors: str)
+    """
+    all_errors = []
+    for attempt in range(1, max_attempts + 1):
+        print(f'[恢复] 第 {attempt}/{max_attempts} 次发送 continue...')
+        debug_continue()
+        time.sleep(1)
+
+        # 每次 continue 后提取新错误（同时检查 [error] 和 .lua: 两种模式）
+        errors = extract_lua_errors(tail_lines=10)
+        if errors and '未找到' not in errors:
+            all_errors.append(f'--- continue #{attempt} ---\n{errors}')
+
+        # 检查心跳是否恢复
+        alive, detail = _verify_heartbeat_alive(max_wait=4, check_interval=1)
+        if alive:
+            print(f'[恢复] 心跳已恢复（第 {attempt} 次 continue 后）')
+            error_text = '\n'.join(all_errors) if all_errors else ''
+            return True, attempt, error_text
+
+    # 所有 continue 都没用
+    error_text = '\n'.join(all_errors) if all_errors else extract_lua_errors(tail_lines=20)
+    return False, max_attempts, error_text
+
+
 def run_lua_with_confirm(code, timeout=10, skip_ready_check=False):
-    """执行 Lua 代码并等待确认（需要 runlua_confirm 补丁）
+    """执行 Lua 代码并验证执行结果
+
+    核心流程（一次脚本调用全部完成）：
+    1. 发送命令到 Y3 Helper
+    2. 收到响应后 → 立即发 continue（预防性释放断点）
+    3. 等待日志刷新 → 立即抓错误
+    4. 判据：心跳正常 + 无新错误 = 成功，否则 = 失败
+
+    为什么收到 success 要立即 continue？
+    - Y3 引擎：代码报错 → 触发断点 → 游戏冻结
+    - 但 Y3 Helper 的 socket 响应只表示"收到了命令"
+    - 如果代码有错，游戏已经卡在断点了
+    - 立即 continue 可以释放断点，让错误日志刷出来
+    - 如果代码没错，continue 是无害的（没有断点就什么都不做）
 
     Args:
         code: Lua 代码
@@ -270,8 +416,8 @@ def run_lua_with_confirm(code, timeout=10, skip_ready_check=False):
 
     Returns:
         dict: {
-            'success': bool,      # 是否成功
-            'executed': bool,     # 游戏是否真正执行了
+            'success': bool,      # 心跳正常 + 无错误 = True
+            'executed': bool,     # 游戏是否收到了命令
             'result': any,        # 执行结果
             'error': str          # 错误信息
         }
@@ -296,59 +442,83 @@ def run_lua_with_confirm(code, timeout=10, skip_ready_check=False):
             result['error'] = '游戏初始化超时，请检查游戏状态'
             return result
 
-    # 发送命令并等待响应
+    # 【前置检查】发命令前先确认心跳正常
+    # 防止在已经断点的游戏上继续堆积命令
+    pre_alive, pre_detail = _verify_heartbeat_alive(max_wait=4, check_interval=2)
+    if not pre_alive:
+        print(f'[警告] 发命令前心跳已异常: {pre_detail}，先尝试恢复...')
+        recovered, attempts, errors = _auto_recover_breakpoint(max_attempts=3)
+        if not recovered:
+            result['error'] = f'游戏在发命令前就已卡死，恢复失败: {pre_detail}\n{errors}'
+            print(f'[失败] {result["error"]}')
+            return result
+        print('[恢复] 发命令前心跳已恢复')
+
+    # 记录发送前的日志行数（用于精确定位新增错误）
+    pre_log_lines = get_log_line_count()
+
+    # ====== 步骤1：发送命令 ======
     response = send_y3helper('y3-helper.runLua', [code], wait_response=True, timeout=timeout)
 
     if response is None:
-        result['error'] = '未收到响应（可能游戏卡死或未打补丁）'
+        result['error'] = '未收到 Y3 Helper 响应（连接超时或插件未运行）'
         return result
 
-    # 等待5秒后检查心跳（检测是否触发了断点）
-    print('[检测] 等待5秒后检查游戏心跳...')
-    time.sleep(5)
+    result['executed'] = True
 
-    has_heartbeat = check_heartbeat_in_log(tail_lines=20)
+    # ====== 步骤2：立即发 continue（预防性释放断点）======
+    # 不管命令是否成功，都发一次 continue
+    # - 如果有断点：释放它，让错误日志能刷出来
+    # - 如果没断点：continue 是无害操作
+    print('[预防] 发送 continue 释放可能的断点...')
+    debug_continue()
 
-    if not has_heartbeat:
-        # 心跳停止 = 触发了断点（通常是Lua语法错误）
-        print('[警告] 检测到心跳停止，游戏可能卡在断点，正在自动恢复...')
-        debug_continue()  # 自动发送continue命令
-        time.sleep(3)
+    # ====== 步骤3：等待日志刷新 + 抓错误 ======
+    time.sleep(1)
 
-        # 提取错误信息
-        errors = extract_lua_errors(tail_lines=20)
-        result['executed'] = True
+    # 再发一次 continue（连环断点：第一个错误恢复后可能触发第二个）
+    debug_continue()
+    time.sleep(1)
+
+    # ====== 步骤4：综合判定 ======
+    # 4a. 检查日志中的新增错误
+    new_errors = extract_lua_errors_since(pre_log_lines)
+
+    # 4b. 检查心跳是否正常
+    alive, detail = _verify_heartbeat_alive(max_wait=6, check_interval=2)
+
+    if not alive:
+        # 心跳中断 — 可能还有更多断点，继续恢复
+        print(f'[失败] 心跳中断: {detail}，深度恢复...')
+        recovered, attempts, errors = _auto_recover_breakpoint(max_attempts=3)
+        if new_errors:
+            errors = new_errors + '\n' + errors
+        if recovered:
+            result['error'] = f'Lua执行触发断点（已自动恢复，continue x{attempts+2}）:\n{errors}'
+        else:
+            result['error'] = f'Lua执行触发断点（恢复失败！需要 frestart）:\n{errors}'
+        print(f'[结果] {result["error"]}')
+        return result
+
+    if new_errors:
+        # 心跳正常但有新错误（非致命错误，如 pcall 捕获的）
         result['success'] = False
-        result['error'] = f'Lua执行错误（已自动恢复）:\n{errors}'
-        print(f'[错误] {result["error"]}')
+        result['error'] = f'心跳正常但日志有新错误:\n{new_errors}'
+        print(f'[警告] {result["error"]}')
         return result
 
+    # 心跳正常 + 无新错误 = 真正的成功
+    result['success'] = True
+
+    # 解析响应内容（提取返回值）
     if isinstance(response, dict):
-        # 检查响应结构
         if 'result' in response:
-            # 标准 JSON-RPC 结果格式
             results = response.get('result', [])
             if results and len(results) > 0:
                 first = results[0]
-                result['executed'] = True
-                result['success'] = first.get('success', False)
                 result['result'] = first.get('result')
-                if not result['success']:
-                    result['error'] = first.get('error', '未知错误')
-            else:
-                result['error'] = '响应结果为空'
         elif 'method' in response:
-            # 游戏端回显消息格式：{'method': 'command', 'params': {...}}
-            # 收到这个说明游戏端处理了命令（即使没有返回结果）
-            result['executed'] = True
-            result['success'] = True
             result['result'] = response.get('params', {}).get('data', '')
-        elif 'error' in response:
-            result['error'] = response['error']
-        else:
-            result['error'] = f'未知响应格式: {response}'
-    else:
-        result['error'] = f'响应类型错误: {type(response)}'
 
     return result
 
@@ -500,11 +670,12 @@ def send_y3helper(command, args=None, wait_response=False, timeout=10):
 
 def kill_game():
     """强制杀掉游戏进程（通过计划任务，有管理员权限）"""
+    startupinfo = _get_hidden_startupinfo()
     try:
         # 通过计划任务杀进程（管理员权限）
         result = subprocess.run(
             ['schtasks', '/run', '/tn', 'Y3KillGame'],
-            capture_output=True, text=True, shell=True
+            capture_output=True, text=True, shell=True, startupinfo=startupinfo
         )
         if result.returncode == 0:
             print('[OK] 已发送杀进程命令 (通过计划任务)')
@@ -515,7 +686,7 @@ def kill_game():
             print('[警告] 计划任务Y3KillGame不存在，尝试直接杀进程...')
             result2 = subprocess.run(
                 ['taskkill', '/F', '/IM', 'Game_x64h.exe'],
-                capture_output=True, text=True, shell=True
+                capture_output=True, text=True, shell=True, startupinfo=startupinfo
             )
             if result2.returncode == 0:
                 print('[OK] 已强制关闭游戏进程')
@@ -561,10 +732,11 @@ def launch_game():
     2. 直接启动（需要UAC确认）
     """
     # 1. 尝试计划任务方式（无UAC）
+    startupinfo = _get_hidden_startupinfo()
     try:
         result = subprocess.run(
             ['schtasks', '/run', '/tn', 'Y3LaunchGame'],
-            capture_output=True, text=True, shell=True
+            capture_output=True, text=True, shell=True, startupinfo=startupinfo
         )
         if result.returncode == 0:
             print('[OK] 游戏启动命令已发送（通过计划任务，无UAC弹窗）')
@@ -669,7 +841,7 @@ def debug_step_out():
 
 # ==================== 截图功能 ====================
 
-# 截图默认保存目录（使用英文路径避免 Unicode 兼容问题）
+# 截图默认保存目录（使用英文路径避免 windows-capture 的 Unicode 问题）
 SCREENSHOT_DIR = 'C:/screenshot_temp'
 SCREENSHOT_DEFAULT = os.path.join(SCREENSHOT_DIR, 'game_screenshot.png')
 
@@ -717,8 +889,6 @@ def screenshot(save_path=None):
     流程：记住当前前台窗口 → 短暂将游戏窗口置前台 → DXcam截图 → 切回原窗口。
     整个过程约0.5秒，用户感受到的只是一次极短的窗口闪烁。
 
-    依赖: pip install pywin32 dxcam Pillow
-
     Args:
         save_path: 保存路径，默认为 C:/screenshot_temp/game_screenshot.png
 
@@ -744,7 +914,6 @@ def screenshot(save_path=None):
 
     print(f'[截图] 正在捕获窗口: {title} (hwnd={hwnd})')
 
-    foreground_hwnd = None
     try:
         windll.user32.SetProcessDPIAware()
 
@@ -884,7 +1053,18 @@ def main():
         if len(args) < 2:
             print('[错误] 请指定要执行的脚本名')
             return
-        run_lua_file(args[1], wait_log=wait_log)
+        result = run_lua_file(args[1], wait_log=wait_log)
+        if result['success']:
+            print(f'[RUN-OK] script {args[1]} executed successfully (heartbeat verified)')
+            if result.get('result'):
+                print(f'[返回] {result["result"]}')
+        else:
+            print(f'[RUN-FAIL] script {args[1]} execution failed')
+            if result.get('error'):
+                print(f'[错误详情] {result["error"]}')
+            if not result.get('executed'):
+                print('[提示] 游戏可能未响应，尝试: python game_control.py frestart')
+            sys.exit(1)
     elif cmd == 'lua' or cmd == 'luac' or cmd == 'lua-confirm':
         # lua 命令默认带确认（需要 runlua_confirm 补丁）
         # args[0] 是 'lua'，args[1:] 是代码
@@ -895,13 +1075,15 @@ def main():
         print(f'[发送] {code[:50]}...' if len(code) > 50 else f'[发送] {code}')
         result = run_lua_with_confirm(code)
         if result['success']:
-            print(f'[成功] 游戏已执行命令')
+            print(f'[RUN-OK] lua command executed successfully (heartbeat verified)')
             if result['result']:
                 print(f'[返回] {result["result"]}')
         else:
-            print(f'[失败] {result["error"]}')
+            print(f'[RUN-FAIL] lua command failed')
+            print(f'[错误详情] {result["error"]}')
             if not result['executed']:
-                print('[提示] 游戏可能卡死，尝试: python game_control.py kill')
+                print('[提示] 游戏可能卡死，尝试: python game_control.py frestart')
+            sys.exit(1)
     elif cmd == 'lua-nc' or cmd == 'lua-noconfirm':
         # 无确认的 Lua 执行（旧模式，不等待响应）
         if len(args) < 2:
