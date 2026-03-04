@@ -169,6 +169,7 @@ PostToolUse Hook 会自动检查每次 Bash 执行后的日志。如果 hook blo
 | `launch` | 启动游戏 |
 | `reload [module]` | 热更新 Lua |
 | `restart` | 重启游戏（调用 tools.restart_game） |
+| `kill` | 关闭游戏进程（权限不足时回退 `Y3KillGame` 计划任务） |
 | `c` | 恢复断点 |
 | `lua "代码"` | 执行行内Lua |
 | `run 脚本名` | 执行 tools/ 下脚本 |

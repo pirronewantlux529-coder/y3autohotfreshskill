@@ -7,6 +7,7 @@
     python game_control.py launch              # 启动游戏（通过Y3 Helper）
     python game_control.py reload [模块路径]  # 热更新模块 (默认 base.hotfresh)
     python game_control.py restart             # 重启游戏 (tools.restart_game)
+    python game_control.py kill                # 关闭游戏进程（权限不足自动回退计划任务）
     python game_control.py run <脚本名>        # 执行 tools/ 下的 lua 脚本（命令ID强校验）
     python game_control.py lua "代码"          # 执行任意 Lua 代码（命令ID强校验）
     python game_control.py c                   # 发送 continue（断点恢复）
@@ -22,7 +23,9 @@ import os
 import re
 import socket
 import struct
+import subprocess
 import sys
+import time
 
 from game_run_check import run_lua_with_checks, run_script_with_checks
 
@@ -79,6 +82,45 @@ def send_y3helper(command, args=None):
     except Exception as e:
         print(f'[错误] {e}')
         return False
+
+
+def _run_subprocess(cmd):
+    return subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding='utf-8',
+        errors='ignore',
+        shell=True,
+    )
+
+
+def kill_game():
+    result = _run_subprocess(['taskkill', '/F', '/IM', 'Game_x64h.exe'])
+    if result.returncode == 0:
+        print('[OK] 已关闭 Game_x64h.exe')
+        return True
+
+    err = (result.stderr or result.stdout or '').strip()
+    denied = ('access is denied' in err.lower()) or ('拒绝访问' in err)
+    if denied:
+        print('[警告] taskkill 权限不足，尝试回退计划任务 Y3KillGame')
+        fallback = _run_subprocess(['schtasks', '/run', '/tn', 'Y3KillGame'])
+        if fallback.returncode == 0:
+            print('[OK] 已发送 Y3KillGame 计划任务')
+            time.sleep(1)
+            return True
+        ferr = (fallback.stderr or fallback.stdout or '').strip()
+        print(f'[错误] 计划任务 Y3KillGame 执行失败: {ferr or "unknown error"}')
+        return False
+
+    not_found = ('not found' in err.lower()) or ('没有运行的实例' in err) or ('未找到' in err)
+    if not_found:
+        print('[跳过] 未检测到 Game_x64h.exe 运行实例')
+        return True
+
+    print(f'[错误] kill 失败: {err or "unknown error"}')
+    return False
 
 
 def _helper_ready():
@@ -156,6 +198,7 @@ def main():
         print('  launch           - 启动游戏（通过 Y3 Helper）')
         print('  reload [module]  - 热更新模块 (默认 base.hotfresh)')
         print('  restart          - 重启游戏（tools.restart_game）')
+        print('  kill             - 关闭游戏进程（权限不足自动回退计划任务）')
         print('  run <script>     - 执行 tools/ 下的 lua 脚本（命令ID强校验）')
         print('  lua "代码"       - 执行任意 Lua 代码（命令ID强校验）')
         print('  c                - 发送 continue（断点恢复）')
@@ -171,6 +214,8 @@ def main():
         ok = reload_lua(module)
     elif cmd == 'restart':
         ok = restart_game()
+    elif cmd == 'kill':
+        ok = kill_game()
     elif cmd == 'run':
         if len(sys.argv) < 3:
             print('[错误] 请指定要执行的脚本名')
